@@ -3,6 +3,21 @@ register namespace lua;
 
 public class __CPPAPIServerSchedule
 {
+    // 文件缓存
+    public fun UseFileCache(bool value) {}
+    // 设置最大缓存大小
+    public fun SetFileCacheMaxSize(int max_size) {}
+    // 清理所有
+    public fun SetFileCacheClearAll() {}
+    // 如果当前所有文件的大小总和超过max_size，那么就清理到max_size为止
+    public fun SetFileCacheClearByMaxSize(int max_size) {}
+    // 根据文件路径来清理
+    public fun SetFileCacheClearByFilePath(string file_path) {}
+    // 如果某些文件超过size的大小，那么清理掉
+    public fun SetFileCacheClearBySize(int size) {}
+    // 如果最后使用的时间小于time，那么就清理掉
+    public fun SetFileCacheClearByTime(int time) {}
+
     // 数据库
     public fun StartMysqlQuery(int thread_count, string ip, string username, string password, int port, string db_name) {}
     public fun AddMysqlStatement(int thread_id, int query_id, lua.__CPPAPIMysqlStatementQuery query) : bool {}
@@ -18,7 +33,6 @@ public class __CPPAPIServerSchedule
     public fun GetHttpServerYunIp() : string {}
     public fun GetHttpServerIp() : string {}
     public fun GetHttpServerPort() : int {}
-    public fun UseFileCache(bool value) {}
 
     public fun HttpClose(int http_id) {}
     public fun HttpSendString(int http_id, string content) {}
