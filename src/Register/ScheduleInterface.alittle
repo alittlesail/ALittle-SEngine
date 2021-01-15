@@ -18,6 +18,7 @@ public class __CPPAPIServerSchedule
     public fun GetHttpServerYunIp() : string {}
     public fun GetHttpServerIp() : string {}
     public fun GetHttpServerPort() : int {}
+    public fun UseFileCache(bool value) {}
 
     public fun HttpClose(int http_id) {}
     public fun HttpSendString(int http_id, string content) {}
