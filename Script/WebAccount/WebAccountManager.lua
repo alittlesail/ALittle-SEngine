@@ -311,15 +311,15 @@ function ALittle.HandleQWebChangePassword(client, msg)
 end
 
 ALittle.RegMsgRpcCallback(-1373673802, ALittle.HandleQWebChangePassword, 1652964636)
-function ALittle.create_account(name)
-	local ___COROUTINE = coroutine.running()
+function ALittle.create_webaccount(name)
 	local error = A_WebAccountManager:CreateAccount(name)
 	if error ~= nil then
 		ALittle.Error(error)
 	else
-		ALittle.Log("账号创建成功:" .. name)
+		ALittle.Log("账号创建成功:" .. name .. " 密码就是账号名")
 	end
 end
+ALittle.create_webaccount = Lua.CoWrap(ALittle.create_webaccount)
 
-ALittle.RegCmdCallback("create_account", ALittle.create_account, {"string"}, {"name"}, "")
+ALittle.RegCmdCallback("create_webaccount", ALittle.create_webaccount, {"string"}, {"name"}, "")
 end
