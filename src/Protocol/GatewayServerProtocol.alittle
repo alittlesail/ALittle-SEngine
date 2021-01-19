@@ -29,3 +29,20 @@ public struct NRouteConnected
     int route_type;
     int route_num;
 }
+
+
+public struct QRouteInfo
+{
+    int route_type;
+}
+
+public struct ARouteInfo
+{
+    string client_ip;
+    int client_port;
+    string http_ip;
+    int http_port;
+}
+
+[Http]
+public await static HandleQRouteInfo(ALittle.IHttpReceiver client, QRouteInfo msg) : ARouteInfo { }
