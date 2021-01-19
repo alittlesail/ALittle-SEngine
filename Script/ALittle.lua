@@ -72,15 +72,15 @@ function _G.__ALITTLEAPI_HttpFailed(id, reason)
 	A_HttpSystem:HandleHttpFailed(id, reason)
 end
 
-function _G.__ALITTLEAPI_HttpTask(http_id, path, param, content)
+function _G.__ALITTLEAPI_HttpTask(http_id, url, path, param, content)
 	local http_callback = ALittle.FindHttpCallback(path)
 	if http_callback ~= nil then
-		ALittle.HttpSystem.HandleHttpTask(path, http_id, http_callback, ALittle.String_HttpAnalysisValueMap(param, content))
+		ALittle.HttpSystem.HandleHttpTask(url, path, http_id, http_callback, ALittle.String_HttpAnalysisValueMap(param, content))
 		return
 	end
 	local http_download_callback = ALittle.FindHttpDownloadCallback(path)
 	if http_download_callback ~= nil then
-		ALittle.HttpSystem.HandleHttpDownloadTask(path, http_id, http_download_callback, ALittle.String_HttpAnalysisValueMap(param, content))
+		ALittle.HttpSystem.HandleHttpDownloadTask(url, path, http_id, http_download_callback, ALittle.String_HttpAnalysisValueMap(param, content))
 		return
 	end
 	__CPPAPI_ServerSchedule:HttpClose(http_id)

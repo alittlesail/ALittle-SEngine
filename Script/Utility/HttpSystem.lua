@@ -31,8 +31,8 @@ function ALittle.HttpSystem:Ctor()
 	___rawset(self, "_id_creator", ALittle.SafeIDCreator())
 end
 
-function ALittle.HttpSystem.HandleHttpTask(method, http_id, callback, value_map)
-	local client = HttpReceiver(method, http_id)
+function ALittle.HttpSystem.HandleHttpTask(url, method, http_id, callback, value_map)
+	local client = HttpReceiver(url, method, http_id)
 	local error, result = Lua.TCall(callback, client, value_map)
 	if error ~= nil then
 		local map = {}
@@ -50,8 +50,8 @@ function ALittle.HttpSystem.HandleHttpTask(method, http_id, callback, value_map)
 end
 ALittle.HttpSystem.HandleHttpTask = Lua.CoWrap(ALittle.HttpSystem.HandleHttpTask)
 
-function ALittle.HttpSystem.HandleHttpDownloadTask(method, http_id, callback, value_map)
-	local client = HttpReceiver(method, http_id)
+function ALittle.HttpSystem.HandleHttpDownloadTask(url, method, http_id, callback, value_map)
+	local client = HttpReceiver(url, method, http_id)
 	local error, file_path, start_size = Lua.TCall(callback, client, value_map)
 	if error ~= nil then
 		client:Close()
