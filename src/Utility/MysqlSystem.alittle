@@ -409,6 +409,7 @@ public class MysqlSystem
         return null, list;
     }
     
+    // value_map是各个条件值，如果没有条件值就填null
     public await fun SelectListFromByMap<T : struct>(T value_map, [Nullable] int thread_id) : string, List<T>
     {
         return this.SelectListFromByMapByReflect(reflect<T>, cast<Map<string, any>>(value_map), thread_id);

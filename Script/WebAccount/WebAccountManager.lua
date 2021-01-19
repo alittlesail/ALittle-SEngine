@@ -321,5 +321,45 @@ function ALittle.create_webaccount(name)
 end
 ALittle.create_webaccount = Lua.CoWrap(ALittle.create_webaccount)
 
-ALittle.RegCmdCallback("create_webaccount", ALittle.create_webaccount, {"string"}, {"name"}, "")
+ALittle.RegCmdCallback("create_webaccount", ALittle.create_webaccount, {"string"}, {"name"}, "创建web账号，参数:账号名")
+function ALittle.show_webaccount()
+	local error, list = A_MysqlSystem:SelectListFromByMap(___all_struct[-192825113], nil)
+	if error ~= nil then
+		ALittle.Error(error)
+		return
+	end
+	local show_list = {}
+	for index, info in ___ipairs(list) do
+		ALittle.List_Push(show_list, info.account_name)
+	end
+	ALittle.Log("all web account:\n" .. ALittle.String_Join(show_list, "\n"))
+end
+ALittle.show_webaccount = Lua.CoWrap(ALittle.show_webaccount)
+
+ALittle.RegCmdCallback("show_webaccount", ALittle.show_webaccount, {}, {}, "显示所有账号名")
+function ALittle.delete_webaccount(name)
+	if name == "alittle" then
+		ALittle.Log(name .. "不能删除")
+		return
+	end
+	local error, info = A_MysqlSystem:SelectOneFromByKey(___all_struct[-192825113], "account_name", name)
+	if error ~= nil then
+		ALittle.Error(error)
+		return
+	end
+	if info == nil then
+		ALittle.Log(name .. "不存在")
+		return
+	end
+	A_WebAccountManager:ForceLogout(info.account_id, "删除账号")
+	error = A_MysqlSystem:DeleteFromByKey(___all_struct[-192825113], "account_id", info.account_id)
+	if error ~= nil then
+		ALittle.Error(error)
+		return
+	end
+	ALittle.Log(name .. "删除成功")
+end
+ALittle.delete_webaccount = Lua.CoWrap(ALittle.delete_webaccount)
+
+ALittle.RegCmdCallback("delete_webaccount", ALittle.delete_webaccount, {"string"}, {"name"}, "删除web账号，参数:账号名")
 end

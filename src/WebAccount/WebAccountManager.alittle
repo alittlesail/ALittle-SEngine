@@ -383,10 +383,61 @@ public await static HandleQWebChangePassword(IMsgCommon client, QWebChangePasswo
     return new AWebChangePassword();
 }
 
-[Cmd]
+[Cmd("创建web账号，参数:账号名")]
 public async static create_webaccount(string name)
 {
     var error = A_WebAccountManager.CreateAccount(name);
     if (error != null) Error(error);
     else Log("账号创建成功:"..name.." 密码就是账号名");
+}
+
+[Cmd("显示所有账号名")]
+public async static show_webaccount()
+{
+    var error, list = A_MysqlSystem.SelectListFromByMap{WebBaseInfo}(null);
+    if (error != null)
+    {
+        Error(error);
+        return;
+    }
+
+    var show_list = new List<string>();
+    for (var index, info in list)
+        List_Push(show_list, info.account_name);
+    Log("all web account:\n"..String_Join(show_list, "\n"));
+}
+
+[Cmd("删除web账号，参数:账号名")]
+public async static delete_webaccount(string name)
+{
+    if (name == "alittle")
+    {
+        Log(name.."不能删除");
+        return;
+    }
+
+    var error, info = A_MysqlSystem.SelectOneFromByKey{WebBaseInfo}("account_name", name);
+    if (error != null)
+    {
+        Error(error);
+        return;
+    }
+
+    if (info == null)
+    {
+        Log(name.."不存在");
+        return;
+    }
+
+    // 把对应的账号踢下线
+    A_WebAccountManager.ForceLogout(info.account_id, "删除账号");
+
+    error = A_MysqlSystem.DeleteFromByKey{WebBaseInfo}("account_id", info.account_id);
+    if (error != null)
+    {
+        Error(error);
+        return;
+    }
+
+    Log(name.."删除成功");
 }
