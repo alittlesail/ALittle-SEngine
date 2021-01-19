@@ -117,6 +117,21 @@ public class WebAccountManager : EventDispatcher
         A_ClientSystem.AddEventListener(this, this.HandleClientConnect);
     }
 
+    public await fun CreateAccount(string name) : string
+    {
+        var base_info = new WebBaseInfo();
+        base_info.account_id = ALittle.String_GenerateID(name);
+        base_info.account_name = name;
+        base_info.account_pwd = String_Md5("ALittle"..String_Md5(name).."ALittle");
+        base_info.role_id = "alittle";
+        var time, index = NewTimeAndIndex();
+        base_info.create_time = time;
+        base_info.create_index = index;
+        base_info.update_time = time;
+        base_info.update_index = index;
+        return A_MysqlSystem.InsertInto(base_info);
+    }
+
     // 根据账号ID获取对象
     public fun GetAccountById(string account_id) : WebAccount
     {
@@ -366,4 +381,12 @@ public await static HandleQWebChangePassword(IMsgCommon client, QWebChangePasswo
                                 "account_id", base_info.account_id);
     if (error != null) throw("数据库操作失败:"..error);
     return new AWebChangePassword();
+}
+
+[Cmd]
+public await static create_account(string name)
+{
+    var error = A_WebAccountManager.CreateAccount(name);
+    if (error != null) Error(error);
+    else Log("账号创建成功:"..name);
 }

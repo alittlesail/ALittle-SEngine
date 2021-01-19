@@ -1,0 +1,51 @@
+
+register namespace DataServer;
+
+// 加载数据
+public struct GS2DATA_QLoadStruct
+{
+    int account_id;
+    int hash_code;
+}
+
+[Msg]
+public await static HandleQLoadStruct(ALittle.IMsgCommon client, GS2DATA_QLoadStruct msg) : ALittle.ProtocolAnyStruct { }
+
+
+public struct GS2DATA_NGameServerInfo
+{
+    string client_ip;
+    int client_port;
+}
+
+// 更新数据
+public struct GS2DATA_NBackupStruct
+{
+    int account_id;
+    ALittle.ProtocolAnyStruct data;
+}
+
+// 注册反射信息
+public struct GS2DATA_NRegStruct
+{
+    List<ALittle.StructInfo> rflt_list;
+    Map<int, bool> table_map;
+}
+
+public struct GS2DATA_NReleaseLease
+{
+    int account_id;
+}
+
+
+public struct GS2DATA_QRenewLease
+{
+    int account_id;
+}
+
+public struct DATA2GS_ARenewLease
+{
+}
+
+[Msg]
+public await static HandleQLeaseRenew(ALittle.IMsgCommon client, GS2DATA_QRenewLease msg) : DATA2GS_ARenewLease { }

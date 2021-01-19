@@ -136,6 +136,21 @@ function ALittle.WebAccountManager:Setup()
 	A_ClientSystem:AddEventListener(___all_struct[-1221484301], self, self.HandleClientConnect)
 end
 
+function ALittle.WebAccountManager:CreateAccount(name)
+	local ___COROUTINE = coroutine.running()
+	local base_info = {}
+	base_info.account_id = ALittle.String_GenerateID(name)
+	base_info.account_name = name
+	base_info.account_pwd = ALittle.String_Md5("ALittle" .. ALittle.String_Md5(name) .. "ALittle")
+	base_info.role_id = "alittle"
+	local time, index = ALittle.NewTimeAndIndex()
+	base_info.create_time = time
+	base_info.create_index = index
+	base_info.update_time = time
+	base_info.update_index = index
+	return A_MysqlSystem:InsertInto(___all_struct[-192825113], base_info)
+end
+
 function ALittle.WebAccountManager:GetAccountById(account_id)
 	return self._id_map_account[account_id]
 end
@@ -296,4 +311,15 @@ function ALittle.HandleQWebChangePassword(client, msg)
 end
 
 ALittle.RegMsgRpcCallback(-1373673802, ALittle.HandleQWebChangePassword, 1652964636)
+function ALittle.create_account(name)
+	local ___COROUTINE = coroutine.running()
+	local error = A_WebAccountManager:CreateAccount(name)
+	if error ~= nil then
+		ALittle.Error(error)
+	else
+		ALittle.Log("账号创建成功:" .. name)
+	end
+end
+
+ALittle.RegCmdCallback("create_account", ALittle.create_account, {"string"}, {"name"}, "")
 end
