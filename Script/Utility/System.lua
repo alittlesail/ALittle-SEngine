@@ -21,6 +21,7 @@ ALittle.RouteType = {
 	RT_GAME = 7,
 	RT_WEB = 8,
 	RT_DEPLOY = 9,
+	RT_MAP = 10,
 }
 
 ALittle.RoutePort = {
@@ -37,6 +38,7 @@ ALittle.RoutePort = {
 	RT_WEB_HTTP = 1700,
 	RT_DEPLOY_HTTP = 1800,
 	RT_DEPLOY_CLIENT = 1801,
+	RT_MAP_CONNECT = 1900,
 }
 
 function ALittle.GetRouteName(route_type, route_num)
@@ -63,6 +65,12 @@ function ALittle.GetRouteName(route_type, route_num)
 	end
 	if route_type == 8 then
 		return "Web_" .. route_num
+	end
+	if route_type == 9 then
+		return "Deploy_" .. route_num
+	end
+	if route_type == 10 then
+		return "Map_" .. route_num
 	end
 	return "Unknow_" .. route_num
 end
