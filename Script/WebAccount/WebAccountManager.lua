@@ -100,6 +100,8 @@ function ALittle.WebAccountManager:Setup()
 		role_info.role_id = "alittle"
 		role_info.role_name = "alittle"
 		role_info.permission = {}
+		ALittle.List_Push(role_info.permission, "105")
+		ALittle.List_Push(role_info.permission, "106")
 		role_info.creator_id = "alittle"
 		local time, index = ALittle.NewTimeAndIndex()
 		role_info.create_time = time
