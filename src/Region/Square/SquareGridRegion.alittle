@@ -1,0 +1,15 @@
+
+namespace ALittle;
+
+public class SquareGridRegion
+{
+    private int _side = 1;
+
+    public ctor(int side)
+    {
+        this._side = side;
+        if (this._side <= 0) this._side = 1;
+    }
+
+
+}
