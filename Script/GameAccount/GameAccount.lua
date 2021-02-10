@@ -71,6 +71,9 @@ end
 function ALittle.GameModule:OnSendData()
 end
 
+function ALittle.GameModule:OnLogin()
+end
+
 function ALittle.GameModule:OnLogout()
 end
 
@@ -81,7 +84,7 @@ function ALittle.GameModuleTemplate:GetDataReflect()
 	return self.__class.__element[1]
 end
 
-function ALittle.GameModuleTemplate:OnSendData()
+function ALittle.GameModuleTemplate:OnLogin()
 	self._account:SendMsg(self.__class.__element[1], self._data)
 end
 
@@ -137,14 +140,17 @@ function ALittle.GameAccount:Ctor(id)
 	___rawset(self, "_loading_failed", nil)
 	___rawset(self, "_status", 1)
 	___rawset(self, "_module_map", {})
+	___rawset(self, "_module_list", {})
 	___rawset(self, "_BACKUP_INTERVAL", 10 * 1000)
 	___rawset(self, "_CACHE_INTERVAL", 30 * 1000)
 	___rawset(self, "_session", tostring(math.random(10000, 99999)))
 end
 
 function ALittle.GameAccount:Release()
-	for name, module in ___pairs(self._module_map) do
-		module:Release()
+	local len = ALittle.List_Len(self._module_list)
+	while len > 0 do
+		self._module_list[len]:Release()
+		len = len - 1
 	end
 	self:StopBackupTimer()
 	self:StopCacheTimer()
@@ -176,13 +182,22 @@ end
 
 function ALittle.GameAccount:RegisterModule(module)
 	local rflt = (module).__class
+	if self._module_map[rflt.__name] ~= nil then
+		return
+	end
 	self._module_map[rflt.__name] = module
+	ALittle.List_Push(self._module_list, module)
+end
+
+function ALittle.GameAccount:GetModule(T)
+	local rflt = T
+	return self._module_map[rflt.__name]
 end
 
 function ALittle.GameAccount:GetAllDataReflect()
 	local map = {}
 	local table_map = {}
-	for name, module in ___pairs(self._module_map) do
+	for _, module in ___ipairs(self._module_list) do
 		local rflt = module:GetDataReflect()
 		if rflt ~= nil then
 			local primary = rflt.option_map["primary"]
@@ -215,7 +230,7 @@ end
 
 function ALittle.GameAccount:StartLoading(session)
 	self._loading_count = 0
-	for name, module in ___pairs(self._module_map) do
+	for _, module in ___ipairs(self._module_list) do
 		if module:HasData() then
 			self._loading_count = self._loading_count + 1
 		end
@@ -233,7 +248,7 @@ function ALittle.GameAccount:StartLoading(session)
 		self:LoadAllCompleted()
 		return
 	end
-	for name, module in ___pairs(self._module_map) do
+	for _, module in ___ipairs(self._module_list) do
 		module:LoadData(session)
 	end
 end
@@ -324,20 +339,20 @@ function ALittle.GameAccount:Backup()
 	if lease_info == nil or lease_info.session == nil then
 		return
 	end
-	for name, module in ___pairs(self._module_map) do
+	for _, module in ___ipairs(self._module_list) do
 		module:BackupData(lease_info.session)
 	end
 end
 
 function ALittle.GameAccount:LogoutAction()
-	for name, module in ___pairs(self._module_map) do
+	for _, module in ___ipairs(self._module_list) do
 		module:OnLogout()
 	end
 	self:Backup()
 end
 
 function ALittle.GameAccount:OnDataReady()
-	for name, module in ___pairs(self._module_map) do
+	for _, module in ___ipairs(self._module_list) do
 		module:OnDataReady()
 	end
 end
@@ -348,7 +363,10 @@ function ALittle.GameAccount:LoginAction()
 	param.gs_route_id = __CPPAPI_ServerSchedule:GetRouteId()
 	param.session_code = self._session
 	self:SendMsg(___all_struct[-197564509], param)
-	for name, module in ___pairs(self._module_map) do
+	for _, module in ___ipairs(self._module_list) do
+		module:OnLogin()
+	end
+	for _, module in ___ipairs(self._module_list) do
 		module:OnSendData()
 	end
 	self:SendMsg(___all_struct[-1836835016], {})
