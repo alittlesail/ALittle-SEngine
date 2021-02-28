@@ -1,0 +1,41 @@
+
+namespace ALittle;
+
+public class GameBehaviorManager
+{
+    private string _base_path;
+    private Map<string, lua.file> _file_map = new Map<string, lua.file>();
+
+    public fun Setup(string base_path)
+    {
+        this._base_path = File_PathEndWithSplit(base_path);
+        File_MakeDeepDir(this._base_path);
+    }
+
+    public fun Log<T:struct>(string tag, T value)
+    {
+        var file = this._file_map[tag];
+        if (file == null)
+        {
+            file = lua.io.open(this._base_path..tag, "rb");
+            if (file == null)
+            {
+                Error("behavior file open failed! path:"..this._base_path..tag, String_JsonEncode(value));
+                return;
+            }
+            this._file_map[tag] = file;
+        }
+
+        file.write(String_JsonEncode(value));
+        file.write("\n");
+    }
+
+    public fun Shutdown()
+    {
+        for (var key, file in this._file_map)
+        	file.close();
+        this._file_map = new Map<string, lua.file>();
+    }
+}
+
+public var A_GameBehaviorManager = new GameBehaviorManager();
