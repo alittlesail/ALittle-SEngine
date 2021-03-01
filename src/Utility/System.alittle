@@ -54,8 +54,9 @@ public enum RoutePort
     RT_MAP_CONNECT = 1900;	// 地图服务器端口
 
     RT_CALL_CENTER_CONNECT = 2000;	// 呼叫中心服务器端口
-    RT_CALL_CENTER_CLIENT = 2001;   // 部署客户端端口
-    RT_CALL_INTERFACE_CONNECT = 2100;	// 呼叫接口服务器端口
+    RT_CALL_CENTER_CLIENT = 2001;   // 客户端端口
+    RT_CALL_SIP_CONNECT = 2100;	// SIP服务器端口
+    RT_CALL_INTERFACE_CONNECT = 2200;	// 呼叫接口服务器端口
 }
 
 // 获取路由名称
