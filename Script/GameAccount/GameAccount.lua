@@ -71,6 +71,9 @@ end
 function ALittle.GameModule:OnSendData()
 end
 
+function ALittle.GameModule:OnLogin()
+end
+
 function ALittle.GameModule:OnLogout()
 end
 
@@ -81,7 +84,7 @@ function ALittle.GameModuleTemplate:GetDataReflect()
 	return self.__class.__element[1]
 end
 
-function ALittle.GameModuleTemplate:OnSendData()
+function ALittle.GameModuleTemplate:OnLogin()
 	self._account:SendMsg(self.__class.__element[1], self._data)
 end
 
@@ -91,14 +94,12 @@ end
 
 function ALittle.GameModuleTemplate:LoadData(session)
 	if session == nil then
-		ALittle.Error(tostring(self) .. " session == null")
-		self._account:LoadOneCompleted(false)
+		self._account:LoadOneCompleted(tostring(self) .. " session == null")
 		return
 	end
 	local rflt = self:GetDataReflect()
 	if rflt == nil then
-		ALittle.Error(tostring(self) .. ":GetDataReflect() == null")
-		self._account:LoadOneCompleted(false)
+		self._account:LoadOneCompleted(tostring(self) .. ":GetDataReflect() == null")
 		return
 	end
 	local param = {}
@@ -106,12 +107,11 @@ function ALittle.GameModuleTemplate:LoadData(session)
 	param.hash_code = rflt.hash_code
 	local error, result = ALittle.IMsgCommon.InvokeRPC(-1121683527, session, param)
 	if error ~= nil then
-		ALittle.Error(tostring(self) .. " DataServer.HandleQLoadStruct() failed:" .. error)
-		self._account:LoadOneCompleted(false)
+		self._account:LoadOneCompleted(tostring(self) .. " DataServer.HandleQLoadStruct() failed:" .. error)
 		return
 	end
 	self._data = result.value
-	self._account:LoadOneCompleted(true)
+	self._account:LoadOneCompleted(nil)
 end
 ALittle.GameModuleTemplate.LoadData = Lua.CoWrap(ALittle.GameModuleTemplate.LoadData)
 
@@ -122,7 +122,6 @@ function ALittle.GameModuleTemplate:BackupData(session)
 	local rflt = self:GetDataReflect()
 	if rflt == nil then
 		ALittle.Error(tostring(self) .. ":GetDataReflect() == null")
-		self._account:LoadOneCompleted(false)
 		return
 	end
 	local param = {}
@@ -138,17 +137,20 @@ ALittle.GameAccount = Lua.Class(nil, "ALittle.GameAccount")
 function ALittle.GameAccount:Ctor(id)
 	___rawset(self, "_id", id)
 	___rawset(self, "_loading_count", 0)
-	___rawset(self, "_loading_failed", false)
+	___rawset(self, "_loading_failed", nil)
 	___rawset(self, "_status", 1)
 	___rawset(self, "_module_map", {})
+	___rawset(self, "_module_list", {})
 	___rawset(self, "_BACKUP_INTERVAL", 10 * 1000)
 	___rawset(self, "_CACHE_INTERVAL", 30 * 1000)
 	___rawset(self, "_session", tostring(math.random(10000, 99999)))
 end
 
 function ALittle.GameAccount:Release()
-	for name, module in ___pairs(self._module_map) do
-		module:Release()
+	local len = ALittle.List_Len(self._module_list)
+	while len > 0 do
+		self._module_list[len]:Release()
+		len = len - 1
 	end
 	self:StopBackupTimer()
 	self:StopCacheTimer()
@@ -180,19 +182,40 @@ end
 
 function ALittle.GameAccount:RegisterModule(module)
 	local rflt = (module).__class
+	if self._module_map[rflt.__name] ~= nil then
+		return
+	end
 	self._module_map[rflt.__name] = module
+	ALittle.List_Push(self._module_list, module)
+end
+
+function ALittle.GameAccount:GetModule(T)
+	local rflt = T
+	return self._module_map[rflt.__name]
 end
 
 function ALittle.GameAccount:GetAllDataReflect()
 	local map = {}
 	local table_map = {}
-	for name, module in ___pairs(self._module_map) do
+	for _, module in ___ipairs(self._module_list) do
 		local rflt = module:GetDataReflect()
 		if rflt ~= nil then
+			local primary = rflt.option_map["primary"]
+			if primary ~= "account_id" then
+				return rflt.ns_name .. "." .. rflt.rl_name .. " don't contain primary named 'account_id'", nil, nil
+			end
+			local field_index = ALittle.List_IndexOf(rflt.name_list, "account_id")
+			if field_index == nil then
+				return rflt.ns_name .. "." .. rflt.rl_name .. " don't contain field named 'account_id'", nil, nil
+			end
+			local field_type = rflt.type_list[field_index]
+			if field_type ~= "int" then
+				return rflt.ns_name .. "." .. rflt.rl_name .. " field type of 'account_id' must be 'int'", nil, nil
+			end
 			table_map[rflt.hash_code] = true
 			local error = ALittle.CollectStructReflect(rflt, map)
 			if error ~= nil then
-				ALittle.Error(error)
+				return error, nil, nil
 			end
 		end
 	end
@@ -202,43 +225,59 @@ function ALittle.GameAccount:GetAllDataReflect()
 		count = count + 1
 		rflt_list[count] = info
 	end
-	return rflt_list, table_map
+	return nil, rflt_list, table_map
 end
 
 function ALittle.GameAccount:StartLoading(session)
-	if not A_GameAccountManager:IsSendModuleReflect(session) then
-		local rflt_list, table_map = self:GetAllDataReflect()
-		A_GameAccountManager:SendModuleReflect(session, rflt_list, table_map)
-	end
 	self._loading_count = 0
-	for name, module in ___pairs(self._module_map) do
+	for _, module in ___ipairs(self._module_list) do
 		if module:HasData() then
 			self._loading_count = self._loading_count + 1
 		end
 	end
+	if not A_GameAccountManager:IsSendModuleReflect(session) then
+		local error, rflt_list, table_map = self:GetAllDataReflect()
+		if error ~= nil then
+			self._loading_failed = error
+			self:LoadAllCompleted()
+			return
+		end
+		A_GameAccountManager:SendModuleReflect(session, rflt_list, table_map)
+	end
 	if self._loading_count == 0 then
-		self:LoadOneCompletedImpl()
+		self:LoadAllCompleted()
 		return
 	end
-	for name, module in ___pairs(self._module_map) do
+	for _, module in ___ipairs(self._module_list) do
 		module:LoadData(session)
 	end
 end
 
-function ALittle.GameAccount:LoadOneCompleted(result)
+function ALittle.GameAccount:LoadOneCompleted(error)
 	self._loading_count = self._loading_count - 1
-	if not result then
-		self._loading_failed = true
+	if error ~= nil then
+		self._loading_failed = error
 	end
 	if self._loading_count > 0 then
 		return
 	end
-	self:LoadOneCompletedImpl()
+	self:LoadAllCompleted()
 end
 
-function ALittle.GameAccount:LoadOneCompletedImpl()
+function ALittle.GameAccount:LoadAllCompleted()
 	local account = A_GameAccountManager:GetAccountById(self._id)
 	if account ~= self then
+		return
+	end
+	if self._loading_failed ~= nil then
+		ALittle.Log("Loading Failed:" .. self._loading_failed .. ", account_id:" .. self._id)
+		ALittle.g_GameLeaseManager:ReleaseLease(self._id)
+		A_GameAccountManager:DeleteAccount(self)
+		if self._client ~= nil then
+			local msg = {}
+			msg.reason = self._loading_failed
+			self._client:SendMsg(___all_struct[-660832923], msg)
+		end
 		return
 	end
 	self:OnDataReady()
@@ -300,20 +339,20 @@ function ALittle.GameAccount:Backup()
 	if lease_info == nil or lease_info.session == nil then
 		return
 	end
-	for name, module in ___pairs(self._module_map) do
+	for _, module in ___ipairs(self._module_list) do
 		module:BackupData(lease_info.session)
 	end
 end
 
 function ALittle.GameAccount:LogoutAction()
-	for name, module in ___pairs(self._module_map) do
+	for _, module in ___ipairs(self._module_list) do
 		module:OnLogout()
 	end
 	self:Backup()
 end
 
 function ALittle.GameAccount:OnDataReady()
-	for name, module in ___pairs(self._module_map) do
+	for _, module in ___ipairs(self._module_list) do
 		module:OnDataReady()
 	end
 end
@@ -324,7 +363,10 @@ function ALittle.GameAccount:LoginAction()
 	param.gs_route_id = __CPPAPI_ServerSchedule:GetRouteId()
 	param.session_code = self._session
 	self:SendMsg(___all_struct[-197564509], param)
-	for name, module in ___pairs(self._module_map) do
+	for _, module in ___ipairs(self._module_list) do
+		module:OnLogin()
+	end
+	for _, module in ___ipairs(self._module_list) do
 		module:OnSendData()
 	end
 	self:SendMsg(___all_struct[-1836835016], {})

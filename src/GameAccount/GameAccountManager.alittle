@@ -257,8 +257,9 @@ public await static HandleQLogin(IMsgCommon client, C2GS_QLogin msg) : GS2C_ALog
         account.SetStatus(GameAccountStatus.LOADING);
         // 设置连接
         A_GameAccountManager.SetAccountClient(account, client);
-        // 开始加载数据
+        // 开始加载数据，内部会开协程加载数据
         account.StartLoading(lease_info.session);
+        // 直接返回应答包，应答包比数据包早到
         return new GS2C_ALogin();
     }
     
@@ -271,6 +272,7 @@ public await static HandleQLogin(IMsgCommon client, C2GS_QLogin msg) : GS2C_ALog
         account.SendMsg(param);
         // 设置连接
         A_GameAccountManager.SetAccountClient(account, client);
+        // 直接返回应答包，应答包比数据包早到
         return new GS2C_ALogin();
     }
     
@@ -289,6 +291,7 @@ public await static HandleQLogin(IMsgCommon client, C2GS_QLogin msg) : GS2C_ALog
         account.StopCacheTimer();
         // 执行登录操作
         account.LoginAction();
+        // 返回应答包，数据包比应答包早到
         return new GS2C_ALogin();
     }
     
@@ -305,7 +308,7 @@ public await static HandleQLogin(IMsgCommon client, C2GS_QLogin msg) : GS2C_ALog
         A_GameAccountManager.SetAccountClient(account, client);
         // 执行登录操作
         account.LoginAction();
-        
+        // 返回应答包，数据包比应答包早到
         return new GS2C_ALogin();
     }
     

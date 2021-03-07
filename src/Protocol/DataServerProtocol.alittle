@@ -49,3 +49,19 @@ public struct DATA2GS_ARenewLease
 
 [Msg]
 public await static HandleQLeaseRenew(ALittle.IMsgCommon client, GS2DATA_QRenewLease msg) : DATA2GS_ARenewLease { }
+
+
+public struct GW2DATA_QLogin
+{
+    int account_id;     // 账号ID
+}
+
+public struct GW2DATA_ALogin
+{
+    string client_ip;   // GameServer的IP
+    int client_port;    // GameServer的端口
+    string session_id;  // 会话ID
+}
+
+[Msg]
+public await static HandleQLogin(ALittle.IMsgCommon client, GW2DATA_QLogin msg) : GW2DATA_ALogin { }

@@ -17,7 +17,6 @@ public class GameModule
         this._account = account;
         this._account.RegisterModule(this);
     }
-    
     // 获取数据的反射信息
     public fun GetDataReflect() : ALittle.StructInfo { return null; }
     // 释放所有内容
@@ -33,6 +32,8 @@ public class GameModule
     public fun OnDataReady() {}
     // 发送模块数据
     public fun OnSendData() {}
+    // 登陆操作
+    public fun OnLogin() {}
     // 登出操作
     public fun OnLogout() {}
 }
@@ -43,27 +44,25 @@ public class GameModuleTemplate<T:struct> : GameModule
     
     public fun GetDataReflect() : ALittle.StructInfo { return reflect<T>; }
     
-    public fun OnSendData()
+    public fun OnLogin()
     {
         this._account.SendMsg(this._data);
     }
-    
+
     public fun HasData() : bool { return true; }
     
     public async fun LoadData(IMsgCommon session)
     {
         if (session == null)
         {
-            Error(lua.tostring(this).." session == null");
-            this._account.LoadOneCompleted(false);
+            this._account.LoadOneCompleted(lua.tostring(this).." session == null");
             return;
         }
         
         var rflt = this.GetDataReflect();
         if (rflt == null)
         {
-            Error(lua.tostring(this)..":GetDataReflect() == null");
-            this._account.LoadOneCompleted(false);
+            this._account.LoadOneCompleted(lua.tostring(this)..":GetDataReflect() == null");
             return;
         }
         
@@ -73,12 +72,11 @@ public class GameModuleTemplate<T:struct> : GameModule
         var error, result = DataServer.HandleQLoadStruct(session, param);
         if (error != null)
         {
-            Error(lua.tostring(this).." DataServer.HandleQLoadStruct() failed:"..error);
-            this._account.LoadOneCompleted(false);
+            this._account.LoadOneCompleted(lua.tostring(this).." DataServer.HandleQLoadStruct() failed:"..error);
             return;
         }
         this._data = cast<T>(result.value);
-        this._account.LoadOneCompleted(true);
+        this._account.LoadOneCompleted(null);
     }
     
     public fun BackupData(IMsgCommon session)
@@ -89,7 +87,6 @@ public class GameModuleTemplate<T:struct> : GameModule
         if (rflt == null)
         {
             Error(lua.tostring(this)..":GetDataReflect() == null");
-            this._account.LoadOneCompleted(false);
             return;
         }
         
@@ -119,10 +116,11 @@ public class GameAccount
     
     // 正在加载的数量
     private int _loading_count;
-    // 是否失败
-    private bool _loading_failed;
+    // 失败原因
+    private string _loading_failed;
     
     private Map<string, GameModule> _module_map;
+    private List<GameModule> _module_list;
     
     // 备份定时器
     private int _backup_timer;
@@ -135,9 +133,10 @@ public class GameAccount
     {
         this._id = id;
         this._loading_count = 0;
-        this._loading_failed = false;
+        this._loading_failed = null;
         this._status = GameAccountStatus.CREATE;
         this._module_map = new Map<string, GameModule>();
+        this._module_list = new List<GameModule>();
         
         this._BACKUP_INTERVAL = 10 * 1000;
         this._CACHE_INTERVAL = 30 * 1000;
@@ -145,9 +144,13 @@ public class GameAccount
     }
     
     protected fun Release()
-    {       
-        for (var name, module in this._module_map)
-            module.Release();
+    {
+        var len = ALittle.List_Len(this._module_list);
+        while (len > 0)
+        {
+            this._module_list[len].Release();
+            --len;
+        }
         this.StopBackupTimer();
         this.StopCacheTimer();
     }
@@ -166,22 +169,46 @@ public class GameAccount
     protected fun RegisterModule(GameModule module)
     {
         var rflt = reflect(module);
+        if (this._module_map[rflt.__name] != null) return;
         this._module_map[rflt.__name] = module;
+        ALittle.List_Push(this._module_list, module);
+    }
+
+    // 获取模块
+    public fun GetModule<T:GameModule>() : T
+    {
+        var rflt = reflect<T>;
+        return this._module_map[rflt.__name];
     }
     
     // 获取所有模块的反射信息，建表信息
-    protected fun GetAllDataReflect() : List<ALittle.StructInfo>, Map<int, bool>
+    // 如果出现错误，则返回错误信息
+    protected fun GetAllDataReflect() : string, List<ALittle.StructInfo>, Map<int, bool>
     {
+        // 用来记录所有的结构体反射信息，包括结构体内部的结构体反射信息
         var map = new Map<int, ALittle.StructInfo>();
+        // 用来标记那些反射信息是真正的表结构
         var table_map = new Map<int, bool>();
-        for (var name, module in this._module_map)
+        for (var _, module in this._module_list)
         {
             var rflt = module.GetDataReflect();
             if (rflt != null)
             {
+                // 判断主键名必须是account_id
+                var primary = rflt.option_map["primary"];
+                if (primary != "account_id") return rflt.ns_name.."."..rflt.rl_name.." don't contain primary named 'account_id'", null, null;
+
+                // 检查account_id是否存在
+                var field_index = ALittle.List_IndexOf(rflt.name_list, "account_id");
+                if (field_index == null) return rflt.ns_name.."."..rflt.rl_name.." don't contain field named 'account_id'", null, null;
+                
+                // 判断组建类型值必须是int
+                var field_type = rflt.type_list[field_index];
+                if (field_type != "int") return rflt.ns_name.."."..rflt.rl_name.." field type of 'account_id' must be 'int'", null, null;
+
                 table_map[rflt.hash_code] = true;
                 var error = ALittle.CollectStructReflect(rflt, map);
-                if (error != null) Error(error);   
+                if (error != null) return error, null, null; 
             }
         }
         
@@ -192,56 +219,80 @@ public class GameAccount
             ++ count;
             rflt_list[count] = info;
         }
-        return rflt_list, table_map;
+        return null, rflt_list, table_map;
     }
     
     // 启动加载
     protected fun StartLoading(IMsgCommon session)
-    {   
-        // 发送反射信息
-        if (!A_GameAccountManager.IsSendModuleReflect(session))
-        {
-            var rflt_list, table_map = this.GetAllDataReflect();
-            A_GameAccountManager.SendModuleReflect(session, rflt_list, table_map);   
-        }
-        
+    {           
         // 先统计模块数量
         this._loading_count = 0;
-        for (var name, module in this._module_map)
+        for (var _, module in this._module_list)
         {
             if (module.HasData())
                 ++this._loading_count;
         }
+
+        // 发送反射信息
+        if (!A_GameAccountManager.IsSendModuleReflect(session))
+        {
+            var error, rflt_list, table_map = this.GetAllDataReflect();
+            if (error != null)
+            {
+                this._loading_failed = error;
+                this.LoadAllCompleted();
+                return;
+            }
+            A_GameAccountManager.SendModuleReflect(session, rflt_list, table_map);   
+        }
         
         if (this._loading_count == 0)
         {
-            this.LoadOneCompletedImpl();
+            this.LoadAllCompleted();
             return;
         }
         
         // 开始加载        
-        for (var name, module in this._module_map)
+        for (var _, module in this._module_list)
             module.LoadData(session);
     }
     
     // 加载情况
-    protected fun LoadOneCompleted(bool result)
+    protected fun LoadOneCompleted(string error)
     {
         -- this._loading_count;
-        if (!result) this._loading_failed = true;
+        if (error != null) this._loading_failed = error;
         
         // 处理加载完毕
         if (this._loading_count > 0) return;
-        
-        this.LoadOneCompletedImpl();
+        this.LoadAllCompleted();
     }
     
-    private fun LoadOneCompletedImpl()
+    private fun LoadAllCompleted()
     {
         // 检查当前account是否还是有效的
         var account = A_GameAccountManager.GetAccountById{GameAccount}(this._id);
         if (account != this) return;
         
+        // 如果执行加载失败了，就要做移除处理
+        if (this._loading_failed != null)
+        {
+            ALittle.Log("Loading Failed:"..this._loading_failed..", account_id:"..this._id);
+            // 放弃租约
+            g_GameLeaseManager.ReleaseLease(this._id);
+            // 删除账号
+            A_GameAccountManager.DeleteAccount(this);
+
+            // 发送强制登出
+            if (this._client != null)
+            {
+                var msg = new GS2C_NForceLogout();
+                msg.reason = this._loading_failed;
+                this._client.SendMsg(msg);
+            }
+            return;
+        }
+
         // 数据加载完成
         this.OnDataReady();
         
@@ -315,14 +366,14 @@ public class GameAccount
         ALittle.Log("Backup, account_id:"..this._id);
         var lease_info = g_GameLeaseManager.GetLease(this._id);
         if (lease_info == null || lease_info.session == null) return;
-        for (var name, module in this._module_map)
+        for (var _, module in this._module_list)
             module.BackupData(lease_info.session);
     }
     
     // 下线
     protected fun LogoutAction()
     {
-        for (var name, module in this._module_map)
+        for (var _, module in this._module_list)
             module.OnLogout();
         this.Backup();
     }
@@ -330,7 +381,7 @@ public class GameAccount
     // 数据加载完毕
     protected fun OnDataReady()
     {
-        for (var name, module in this._module_map)
+        for (var _, module in this._module_list)
             module.OnDataReady();
     }
     
@@ -343,9 +394,13 @@ public class GameAccount
         param.gs_route_id = __CPPAPI_ServerSchedule.GetRouteId();
         param.session_code = this._session;
         this.SendMsg(param);
-        
+    
+        // 处理所有模块登陆
+        for (var _, module in this._module_list)
+            module.OnLogin();
+
         // 发送所有模块信息
-        for (var name, module in this._module_map)
+        for (var _, module in this._module_list)
             module.OnSendData();
         
         // 发送数据加载完成

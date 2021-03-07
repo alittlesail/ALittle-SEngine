@@ -20,8 +20,8 @@ name_list = {"reason"},
 type_list = {"string"},
 option_map = {}
 })
-ALittle.RegStruct(799192036, "ALittle.SessionInfo", {
-name = "ALittle.SessionInfo", ns_name = "ALittle", rl_name = "SessionInfo", hash_code = 799192036,
+ALittle.RegStruct(-757180472, "ALittle.WebSessionInfo", {
+name = "ALittle.WebSessionInfo", ns_name = "ALittle", rl_name = "WebSessionInfo", hash_code = -757180472,
 name_list = {"new_client","old_client","time"},
 type_list = {"string","string","int"},
 option_map = {}
