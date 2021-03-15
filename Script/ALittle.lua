@@ -8,7 +8,7 @@ ALittle.SetLogFunc(carp.Log)
 function _G.RequireSEngine(base_path)
 	local ___COROUTINE = coroutine.running()
 	Require(base_path, "Utility/Time")
-	Require(base_path, "Utility/System")
+	Require(base_path, "Utility/RouteSystem")
 	Require(base_path, "Utility/HttpSystem")
 	Require(base_path, "Utility/HttpFileSystem")
 	Require(base_path, "Utility/ClientSystem")
@@ -127,7 +127,12 @@ function _G.__ALITTLEAPI_ConnectSessionSucceed(connect_key, route_type, route_nu
 end
 
 function _G.__ALITTLEAPI_HandleConsoleCmd(cmd)
-	ALittle.ExecuteCommand(cmd)
+	local error, result = Lua.TCall(ALittle.ExecuteCommand, cmd)
+	if error ~= nil then
+		ALittle.Warn(error)
+	elseif result ~= nil then
+		ALittle.Log(result)
+	end
 end
 
 end

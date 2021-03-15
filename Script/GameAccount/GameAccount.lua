@@ -14,6 +14,12 @@ name_list = {"hash_code","value"},
 type_list = {"int","any"},
 option_map = {}
 })
+ALittle.RegStruct(1721209641, "ALittle.GS2CL_ACmd", {
+name = "ALittle.GS2CL_ACmd", ns_name = "ALittle", rl_name = "GS2CL_ACmd", hash_code = 1721209641,
+name_list = {"result"},
+type_list = {"string"},
+option_map = {}
+})
 ALittle.RegStruct(1463647694, "DataServer.GS2DATA_NBackupStruct", {
 name = "DataServer.GS2DATA_NBackupStruct", ns_name = "DataServer", rl_name = "GS2DATA_NBackupStruct", hash_code = 1463647694,
 name_list = {"account_id","data"},
@@ -24,6 +30,12 @@ ALittle.RegStruct(-1121683527, "DataServer.GS2DATA_QLoadStruct", {
 name = "DataServer.GS2DATA_QLoadStruct", ns_name = "DataServer", rl_name = "GS2DATA_QLoadStruct", hash_code = -1121683527,
 name_list = {"account_id","hash_code"},
 type_list = {"int","int"},
+option_map = {}
+})
+ALittle.RegStruct(468063233, "ALittle.CL2GS_QCmd", {
+name = "ALittle.CL2GS_QCmd", ns_name = "ALittle", rl_name = "CL2GS_QCmd", hash_code = 468063233,
+name_list = {"cmd"},
+type_list = {"string"},
 option_map = {}
 })
 ALittle.RegStruct(-197564509, "ALittle.GS2C_NAccountInfo", {
@@ -379,4 +391,30 @@ function ALittle.GameAccount:SendMsg(T, msg)
 	self._client:SendMsg(T, msg)
 end
 
+local __enable_cmd = false
+function ALittle.EnableCmd(enable)
+	__enable_cmd = enable
+end
+
+ALittle.RegCmdCallback("EnableCmd", ALittle.EnableCmd, {"bool"}, {"enable"}, "")
+function ALittle.HandleCmd(client, msg)
+	local ___COROUTINE = coroutine.running()
+	Lua.Assert(__enable_cmd, "未开启指令模式")
+	local account = A_GameAccountManager:GetAccountByClient(client)
+	Lua.Assert(account, "账号未登录")
+	local cmd = ""
+	local cmd_split_index = ALittle.String_Find(msg.cmd, " ")
+	if cmd_split_index == nil then
+		cmd = msg.cmd .. " " .. account:GetId()
+	else
+		cmd = ALittle.String_Sub(msg.cmd, 1, cmd_split_index) .. account:GetId() .. " " .. ALittle.String_Sub(msg.cmd, cmd_split_index + 1)
+	end
+	local error, result = Lua.TCall(ALittle.ExecuteCommand, cmd)
+	Lua.Assert(error == nil, error)
+	local rsp = {}
+	rsp.result = result
+	return rsp
+end
+
+ALittle.RegMsgRpcCallback(468063233, ALittle.HandleCmd, 1721209641)
 end

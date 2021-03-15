@@ -8,6 +8,7 @@ public class GameBehaviorManager
 
     public fun Setup(string base_path)
     {
+        ALittle.File_MakeDeepDir(base_path);
         this._base_path = File_PathEndWithSplit(base_path);
         File_MakeDeepDir(this._base_path);
     }
@@ -17,7 +18,7 @@ public class GameBehaviorManager
         var file = this._file_map[tag];
         if (file == null)
         {
-            file = lua.io.open(this._base_path..tag, "rb");
+            file = lua.io.open(this._base_path..tag..".txt", "a");
             if (file == null)
             {
                 Error("behavior file open failed! path:"..this._base_path..tag, String_JsonEncode(value));

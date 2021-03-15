@@ -73,7 +73,9 @@ public class GameAccountManager
     // 删除账号
     protected fun DeleteAccount(GameAccount account)
     {
+        // 根据ID获取对象
         var cur_account = this._account_map[account.GetId()];
+        // 判定对象是不是同一个
         if (cur_account == account)
         {
             account.Release();

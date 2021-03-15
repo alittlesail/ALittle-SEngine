@@ -414,3 +414,44 @@ public class GameAccount
         this._client.SendMsg(msg);
     }
 }
+
+private var __enable_cmd = false;
+
+[Cmd]
+public static EnableCmd(bool enable)
+{
+    __enable_cmd = enable;
+}
+
+public struct CL2GS_QCmd
+{
+    string cmd;
+}
+
+public struct GS2CL_ACmd
+{
+    string result;
+}
+
+[Msg]
+public await static HandleCmd(IMsgCommon client, CL2GS_QCmd msg) : GS2CL_ACmd
+{
+    assert(__enable_cmd, "未开启指令模式");
+
+    var account = A_GameAccountManager.GetAccountByClient{GameAccount}(client);
+    assert(account, "账号未登录");
+
+    var cmd = "";
+    var cmd_split_index = ALittle.String_Find(msg.cmd, " ");
+    if (cmd_split_index == null)
+    	cmd = msg.cmd.." "..account.GetId();
+    else
+    	cmd = ALittle.String_Sub(msg.cmd, 1, cmd_split_index)..account.GetId().." "..ALittle.String_Sub(msg.cmd, cmd_split_index + 1);
+
+    var error, result = tcall(ALittle.ExecuteCommand, cmd);
+    assert(error == null, error);
+
+    var rsp = new GS2CL_ACmd();
+    rsp.result = result;
+    return rsp;
+}

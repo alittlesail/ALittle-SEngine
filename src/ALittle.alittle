@@ -6,7 +6,7 @@ ALittle.SetLogFunc(carp.Log);
 public await static RequireSEngine(string base_path)
 {
     Require(base_path, "Utility/Time");
-    Require(base_path, "Utility/System");
+    Require(base_path, "Utility/RouteSystem");
     Require(base_path, "Utility/HttpSystem");
     Require(base_path, "Utility/HttpFileSystem");
     Require(base_path, "Utility/ClientSystem");
@@ -157,5 +157,7 @@ public static __ALITTLEAPI_ConnectSessionSucceed(int connect_key, int route_type
 
 public static __ALITTLEAPI_HandleConsoleCmd(string cmd)
 {
-    ALittle.ExecuteCommand(cmd);
+	var error, result = tcall(ALittle.ExecuteCommand, cmd);
+    if (error != null) ALittle.Warn(error);
+    elseif (result != null) ALittle.Log(result);
 }

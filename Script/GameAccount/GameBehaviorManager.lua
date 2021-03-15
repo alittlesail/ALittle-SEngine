@@ -15,6 +15,7 @@ function ALittle.GameBehaviorManager:Ctor()
 end
 
 function ALittle.GameBehaviorManager:Setup(base_path)
+	ALittle.File_MakeDeepDir(base_path)
 	self._base_path = ALittle.File_PathEndWithSplit(base_path)
 	ALittle.File_MakeDeepDir(self._base_path)
 end
@@ -22,7 +23,7 @@ end
 function ALittle.GameBehaviorManager:Log(T, tag, value)
 	local file = self._file_map[tag]
 	if file == nil then
-		file = io.open(self._base_path .. tag, "rb")
+		file = io.open(self._base_path .. tag .. ".txt", "a")
 		if file == nil then
 			ALittle.Error("behavior file open failed! path:" .. self._base_path .. tag, ALittle.String_JsonEncode(value))
 			return
