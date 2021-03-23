@@ -93,7 +93,7 @@ public class __CPPAPIServerSchedule
                     , string register_uri, int register_expires) : bool {}
     public fun CloseSip() {}
     // 注册SIP账号
-    public fun RegisterSipAccount(string nickname, string account, string password) {}
+    public fun RegisterSipAccount(string account, string password) {}
 
     // 服务端服务
     public fun StartRouteSystem(int route_type, int route_num) {}
