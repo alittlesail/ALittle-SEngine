@@ -13,6 +13,7 @@ function _G.RequireSEngine(base_path)
 	Require(base_path, "Utility/HttpFileSystem")
 	Require(base_path, "Utility/ClientSystem")
 	Require(base_path, "Utility/SessionSystem")
+	Require(base_path, "Utility/SipSystem")
 	Require(base_path, "Utility/MysqlSystem")
 	Require(base_path, "CacheData/CacheDataSet")
 	Require(base_path, "CacheData/FullDataSet")
@@ -124,6 +125,14 @@ end
 
 function _G.__ALITTLEAPI_ConnectSessionSucceed(connect_key, route_type, route_num)
 	A_SessionSystem:HandleConnectSessionSucceed(connect_key, route_type, route_num)
+end
+
+function _G.__ALITTLEAPI_SipLog(type, call_id, info)
+	A_SipSystem:HandleSipLog(type, call_id, info)
+end
+
+function _G.__ALITTLEAPI_RegisterSucceed(nickname)
+	A_SipSystem:HandleRegisterSucceed(nickname)
 end
 
 function _G.__ALITTLEAPI_HandleConsoleCmd(cmd)

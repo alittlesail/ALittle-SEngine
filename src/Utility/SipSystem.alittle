@@ -1,0 +1,42 @@
+
+namespace ALittle;
+
+// 注册成功事件
+public struct SipRegisterSucceedEvent : Event
+{
+    string nickname;
+}
+
+// sip日志
+public struct SipLogEvent : Event
+{
+    string type;
+    string call_id;
+    string info;
+}
+
+// Sip系统
+public class SipSystem : EventDispatcher
+{
+    public ctor()
+    {
+    }
+
+    protected fun HandleSipLog(string type, string call_id, string info)
+    {
+        var event = new SipLogEvent();
+        event.type = type;
+        event.call_id = call_id;
+        event.info = info;
+        this.DispatchEvent(event);
+    }
+
+    protected fun HandleRegisterSucceed(string nickname)
+    {
+        var event = new SipRegisterSucceedEvent();
+        event.nickname = nickname;
+        this.DispatchEvent(event);
+    }
+}
+
+public var A_SipSystem = new SipSystem();

@@ -11,6 +11,7 @@ public await static RequireSEngine(string base_path)
     Require(base_path, "Utility/HttpFileSystem");
     Require(base_path, "Utility/ClientSystem");
     Require(base_path, "Utility/SessionSystem");
+    Require(base_path, "Utility/SipSystem");
     Require(base_path, "Utility/MysqlSystem");
     
     Require(base_path, "CacheData/CacheDataSet");
@@ -153,6 +154,16 @@ public static __ALITTLEAPI_ConnectSessionFailed(int route_type, int route_num, s
 public static __ALITTLEAPI_ConnectSessionSucceed(int connect_key, int route_type, int route_num)
 {
     A_SessionSystem.HandleConnectSessionSucceed(connect_key, route_type, route_num);
+}
+
+public static __ALITTLEAPI_SipLog(string type, string call_id, string info)
+{
+    A_SipSystem.HandleSipLog(type, call_id, info);
+}
+
+public static __ALITTLEAPI_RegisterSucceed(string nickname)
+{
+    A_SipSystem.HandleRegisterSucceed(nickname);
 }
 
 public static __ALITTLEAPI_HandleConsoleCmd(string cmd)

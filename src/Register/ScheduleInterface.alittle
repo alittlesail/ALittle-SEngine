@@ -83,6 +83,18 @@ public class __CPPAPIServerSchedule
                      , string remote_rtp_ip, int remote_rtp_port
                      , string call_id, int client_id, int ssrc) {}
 
+	// 启动服务器
+	// self_sip_ip self_sip_port 己端的SIP的IP和端口
+	// remote_sip_ip remote_sip_port 对端的SIP的IP和端口
+	// register_uri 对端的注册域名，如果没有就填空串，比如移动的ims.fj.chinamobile.com
+	// register_expires 对端注册的超时时间，一般是3600
+	public fun StartSip(string self_sip_ip, int self_sip_port
+                    , string remote_sip_ip, int remote_sip_port
+                    , string register_uri, int register_expires) : bool {}
+    public fun CloseSip() {}
+    // 注册SIP账号
+    public fun RegisterSipAccount(string nickname, string account, string password) {}
+
     // 服务端服务
     public fun StartRouteSystem(int route_type, int route_num) {}
     public fun GetRouteType() : int {}
