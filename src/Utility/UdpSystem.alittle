@@ -1,0 +1,34 @@
+
+namespace ALittle;
+
+public struct UdpMessageEvent : Event
+{
+    string self_ip;
+    int self_port;
+    string remote_ip;
+    int remote_port;
+    string message;
+}
+
+public class UdpSystem : EventDispatcher
+{
+    private UdpMessageEvent _event;
+
+    public ctor()
+    {
+        this._event = new UdpMessageEvent();
+    }
+
+    protected fun HandleUdpMessage(string self_ip, int self_port, string remote_ip, int remote_port, string message)
+    {
+        var event = this._event;
+        event.self_ip = self_ip;
+        event.self_port = self_port;
+        event.remote_ip = remote_ip;
+        event.remote_port = remote_port;
+        event.message = message;
+        this.DispatchEvent(event);
+    }
+}
+
+public var A_UdpSystem = new UdpSystem();
