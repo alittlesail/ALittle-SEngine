@@ -153,8 +153,8 @@ function ALittle.GameAccount:Ctor(id)
 	___rawset(self, "_status", 1)
 	___rawset(self, "_module_map", {})
 	___rawset(self, "_module_list", {})
-	___rawset(self, "_BACKUP_INTERVAL", 10 * 1000)
-	___rawset(self, "_CACHE_INTERVAL", 30 * 1000)
+	___rawset(self, "_BACKUP_INTERVAL", 60 * 1000)
+	___rawset(self, "_CACHE_INTERVAL", 30 * 60 * 1000)
 	___rawset(self, "_session", tostring(math.random(10000, 99999)))
 end
 

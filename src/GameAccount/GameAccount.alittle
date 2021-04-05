@@ -138,8 +138,8 @@ public class GameAccount
         this._module_map = new Map<string, GameModule>();
         this._module_list = new List<GameModule>();
         
-        this._BACKUP_INTERVAL = 10 * 1000;
-        this._CACHE_INTERVAL = 30 * 1000;
+        this._BACKUP_INTERVAL = 60 * 1000;
+        this._CACHE_INTERVAL = 30 * 60 * 1000;
         this._session = lua.tostring(lua.math.random(10000, 99999));
     }
     
