@@ -45,7 +45,7 @@ public class __CPPAPIServerSchedule
     public fun SetInnerRtp(int first_port, string inner_rtp_ip, int inner_rtp_port) {}
 
     // 转接到client_id
-    public fun TransClient(int first_port, int client_id) {}
+    public fun TransferToClient(int first_port, int client_id) {}
 
     // 清理空闲rtp，可以定时调用
     // idle_delta_time 表示超过多少秒的空闲清理掉
