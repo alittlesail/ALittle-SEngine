@@ -144,7 +144,8 @@ function ALittle.GameModuleTemplate:BackupData(session)
 	session:SendMsg(___all_struct[1463647694], param)
 end
 
-ALittle.GameAccount = Lua.Class(nil, "ALittle.GameAccount")
+assert(ALittle.EventDispatcher, " extends class:ALittle.EventDispatcher is nil")
+ALittle.GameAccount = Lua.Class(ALittle.EventDispatcher, "ALittle.GameAccount")
 
 function ALittle.GameAccount:Ctor(id)
 	___rawset(self, "_id", id)

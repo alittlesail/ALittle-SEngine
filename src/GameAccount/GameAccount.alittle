@@ -107,7 +107,7 @@ public struct GS2C_NAccountInfo
 }
 
 // Game账号
-public class GameAccount
+public class GameAccount : ALittle.EventDispatcher
 {
     private int _id;
     private int _status;
