@@ -21,10 +21,8 @@ public enum RouteType
     RT_DEPLOY = 9;	  // 部署服务器
     RT_MAP = 10;		// 地图服务器
 
-    RT_CALL_CENTER = 11; // 呼叫中心服务器
-    RT_CALL_INTERFACE = 12;	// 呼叫接口服务器
-    RT_CALL_SIP = 13;		// SIP服务器
-    RT_CALL_RTP = 14;		// 媒体服务器
+    RT_SIP = 11;		// SIP服务器
+    RT_RTP = 12;		// 媒体服务器
 }
 
 // 路由端口
@@ -53,10 +51,7 @@ public enum RoutePort
 
     RT_MAP_CONNECT = 1900;	// 地图服务器端口
 
-    RT_CALL_CENTER_CONNECT = 2000;	// 呼叫中心服务器端口
-    RT_CALL_CENTER_CLIENT = 2001;   // 客户端端口
-    RT_CALL_SIP_CONNECT = 2100;	// SIP服务器端口
-    RT_CALL_INTERFACE_CONNECT = 2200;	// 呼叫接口服务器端口
+    RT_SIP_CONNECT = 2000;	// SIP服务器端口
 }
 
 // 获取路由名称
@@ -72,10 +67,8 @@ public static GetRouteName(int route_type, int route_num) : string
     if (route_type == RouteType.RT_WEB) return "Web_"..route_num;
     if (route_type == RouteType.RT_DEPLOY) return "Deploy_"..route_num;
     if (route_type == RouteType.RT_MAP) return "Map_"..route_num;
-    if (route_type == RouteType.RT_CALL_CENTER) return "CallCenter_"..route_num;
-    if (route_type == RouteType.RT_CALL_INTERFACE) return "CallInterface_"..route_num;
-    if (route_type == RouteType.RT_CALL_SIP) return "CallSip_"..route_num;
-    if (route_type == RouteType.RT_CALL_RTP) return "CallRtp_"..route_num;
+    if (route_type == RouteType.RT_SIP) return "Sip_"..route_num;
+    if (route_type == RouteType.RT_RTP) return "Rtp_"..route_num;
     return "Unknow_"..route_num;
 }
 

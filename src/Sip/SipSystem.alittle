@@ -1,0 +1,472 @@
+
+namespace ALittle;
+
+// 呼叫状态发生变化
+public struct SipCallStepEvent : Event
+{
+    SipCall call_info;
+}
+
+protected class SipSystem : EventDispatcher
+{
+    // 配置信息
+    private string _self_ip = "127.0.0.1";
+    private int _self_port = 5060;
+    private string _remote_ip = "127.0.0.1";
+    private int _remote_port = 5060;
+    private string _remote_domain = "";
+
+    // 是否支持100rel
+    private bool _support_100_rel = false;
+
+    // 目前所有的呼叫
+    private Map<string, SipCall> _call_map = new Map<string, SipCall>();
+
+    // 需要重新发送的呼叫
+    private Map<SipCall, bool> _resend_weak_map;
+    private LoopFunction _loop_resend;
+
+    // 需要重新发送的session的呼叫
+    private Map<SipCall, bool> _session_weak_map;
+    private LoopFunction _loop_session;
+
+    public fun Setup(string self_ip, int self_port, string remote_ip, int remote_port, string remote_domain)
+    {
+        this._self_ip = self_ip;
+        this._self_port = self_port;
+        this._remote_ip = remote_ip;
+        this._remote_port = remote_port;
+        this._remote_domain = remote_domain;
+
+        // 启动SIP服务器
+        __CPPAPI_ServerSchedule.CreateUdpServer(this._self_ip, this._self_port);
+
+        // 监听udp消息
+        A_UdpSystem.AddEventListener(this, this.HandleSipInfo);
+
+        // 初始化重发机制容器
+        this._resend_weak_map = CreateKeyWeakMap();
+        this._session_weak_map = CreateKeyWeakMap();
+
+        // 每秒检查定时
+        this._loop_resend = new LoopFunction(bind(this.HandleUpdateResend, this), -1, 1000, 1000);
+        this._loop_resend.Start();
+
+        // 每秒检查会话
+        this._loop_session = new LoopFunction(bind(this.HandleUpdateSession, this), -1, 6000, 1000);
+        this._loop_session.Start();
+    }
+
+    public fun Shutdown()
+    {
+        // 移除监听
+        A_UdpSystem.RemoveEventListener(this, this.HandleSipInfo);
+
+        // 停止定时器
+        if (this._loop_resend != null)
+        {
+            this._loop_resend.Stop();
+            this._loop_resend = null;
+        }
+        
+        if (this._loop_session != null)
+        {
+            this._loop_session.Stop();
+            this._loop_session = null;
+        }
+    }
+
+    protected fun AddResend(SipCall call)
+    {
+        this._resend_weak_map[call] = true;
+    }
+
+    protected fun AddSession(SipCall call)
+    {
+        this._session_weak_map[call] = true;
+    }
+
+    protected fun Send(string message)
+    {
+        __CPPAPI_ServerSchedule.SendUdpMessage(this._self_ip, this._self_port, this._remote_ip, this._remote_port, message);
+        Log("SEND==>");
+        Log(message);
+    }
+
+    protected fun ReleaseCall(SipCall call_info)
+    {
+        Log("Release call_id:"..call_info._call_id);
+        A_RtpSystem.ReleaseRtp(call_info._call_id);
+        this._call_map[call_info._call_id] = null;
+        this._session_weak_map[call_info] = null;
+        this._resend_weak_map[call_info] = null;
+    }
+
+    //==============================================================================================
+    private fun HandleUpdateResend()
+    {
+        var cur_time = Time_GetCurTime();
+
+        // SipCall是呼叫对象，Value是是否移除
+        var remove_map:Map<SipCall, bool>;
+        for (var call_info, _ in this._resend_weak_map)
+        {
+            // 如果正在通话，那么就直接移除
+            if (call_info._sip_step == SipStep.TALK)
+            {
+                if (remove_map == null) remove_map = new Map<SipCall, bool>();
+                remove_map[call_info] = false;
+            }
+            // 处理INVITE
+            elseif (call_info._sip_step == SipStep.OUT_INVITE)
+            {
+                // 重发5次
+                if (call_info._invite_count < 5)
+                {
+                    // 如果直接超过两秒，重新发起
+                    if (cur_time - call_info._sip_send_time > 2)
+                    	call_info.CallOutInviteImpl(cur_time);
+                }
+                // 超过5次，那么就直接移除
+                else
+                {
+                    if (remove_map == null) remove_map = new Map<SipCall, bool>();
+                    remove_map[call_info] = true;
+                }
+            }
+            // 处理接受到TRYING事件
+            elseif (call_info._sip_step == SipStep.OUT_TRYING)
+            {
+                // 如果这个状态超过10分钟，那么就直接移除
+                if (cur_time - call_info._sip_receive_time > 60 * 10)
+                {
+                    if (remove_map == null) remove_map = new Map<SipCall, bool>();
+                    remove_map[call_info] = true;
+                }
+            }
+            // 处理RINGRING事件
+            elseif (call_info._sip_step == SipStep.OUT_RINGING)
+            {
+                // 如果这个状态超过10分钟，那么就直接移除
+                if (cur_time - call_info._sip_receive_time > 60 * 10)
+                {
+                    if (remove_map == null) remove_map = new Map<SipCall, bool>();
+                    remove_map[call_info] = true;
+                }
+            }
+            // 处理主动发送的CANCEL事件
+            elseif (call_info._sip_step == SipStep.OUT_CANCELING)
+            {
+                if (call_info._cancel_count < 15)
+                {
+                    // 如果主动撤销的重复发送，知道对方有应答，只要有应答那么流程就可以顺利结束
+                    if (cur_time - call_info._sip_send_time >= 1)
+                        call_info.CallOutCancel();
+                }
+                // 超过5次，那么就直接移除
+                else
+                {
+                    if (remove_map == null) remove_map = new Map<SipCall, bool>();
+                    remove_map[call_info] = true;
+                }
+            }
+            // 处理呼入拒接
+            elseif (call_info._sip_step == SipStep.IN_FORBIDDEN)
+            {
+                if (call_info._forbidden_count < 5)
+                {
+                    // 如果呼入拒接，重复发送，只要有应答那么流程就可以顺利结束
+                    if (cur_time - call_info._sip_send_time > 10)
+                        call_info.CallInForbiddenImpl();
+                }
+                else
+                {
+                    if (remove_map == null) remove_map = new Map<SipCall, bool>();
+                    remove_map[call_info] = true;
+                }
+            }
+            // 处理呼入响铃
+            elseif (call_info._sip_step == SipStep.IN_RINGING)
+            {
+                // 如果这个状态超过10分钟，那么就直接移除
+                if (cur_time - call_info._sip_send_time > 60 * 10)
+                {
+                    if (remove_map == null) remove_map = new Map<SipCall, bool>();
+                    remove_map[call_info] = true;
+                }
+            }
+            // 处理呼入接听
+            elseif (call_info._sip_step == SipStep.IN_OK)
+            {
+                if (call_info._ok_count < 50)
+                {
+                    // 如果呼入接听持续时间比较久，就重复发送
+                    if (cur_time - call_info._sip_send_time > 30)
+                        call_info.CallInOKImpl();
+                }
+                else
+                {
+                    if (remove_map == null) remove_map = new Map<SipCall, bool>();
+                    remove_map[call_info] = true;
+                }
+            }
+            // 处理挂断事件
+            elseif (call_info._sip_step == SipStep.TALK_BYING)
+            {
+                if (call_info._bye_count < 50)
+                {
+                    // 如果挂断事件持续事件比较久，就直接发送
+                    if (cur_time - call_info._sip_send_time > 30)
+                        call_info.TalkByeImpl();
+                }
+                else
+                {
+                    if (remove_map == null) remove_map = new Map<SipCall, bool>();
+                    remove_map[call_info] = true;
+                }
+            }
+        }
+
+        if (remove_map != null)
+        {
+            for (var call_info, need_release in remove_map)
+            {
+                this._resend_weak_map[call_info] = null;
+                if (need_release) this.ReleaseCall(call_info);
+            }
+        }
+    }
+
+    private fun HandleUpdateSession()
+    {
+        var cur_time = Time_GetCurTime();
+    
+        for (var call_info, _ in this._session_weak_map)
+        {
+            if (call_info._sip_step != SipStep.TALK_END)
+            	call_info.SendSession(cur_time);
+        }
+    }
+
+    private fun HandleSipInfo(UdpMessageEvent event)
+    {
+        Log("RECEIVE <===", event.remote_ip..":"..event.remote_port);
+        Log(event.message);
+
+        // 拆分sip协议
+        var content_list = String_Split(event.message, "\r\n");
+    
+        // 获取call_id
+        var call_id = SipCall.GetKeyValueFromUDP(content_list, "CALL-ID");
+        if (call_id == null || call_id == "") return;
+
+        // 从第一行拆分出命令
+        if (content_list[1] == null) return;
+        var response_list = String_Split(content_list[1], " ");
+        if (response_list[1] == null) return;
+
+        // 读取method和status
+        var method = response_list[1];
+        var status = "";
+        if (method == "SIP/2.0")
+        {
+            if (response_list[2] == null) return;
+            status = response_list[2];
+        }
+
+        var cseq_number, cseq_method = SipCall.GetCseqFromUDP(content_list);
+        if (cseq_method == "REGISTER")
+        {
+            if (status == "401")
+            {
+                var nonce, realm = SipCall.GetNonceRealmFromUDP(content_list, "WWW-AUTHENTICATE");
+                var from_number, from_tag = SipCall.GetFromFromUDP(content_list);
+
+                var uri = this._remote_domain;
+                if (uri == null || uri == "") uri = this._remote_ip..":"..this._remote_port;
+                var auth = SipCall.GenAuth(nonce, realm, from_number, A_SipRegister.GetPassword(from_number), "REGISTER", uri);
+
+                var via_branch = String_Md5(String_GenerateID("via_branch"));
+                this.Send(this.GenRegister(from_number, call_id, via_branch, from_tag, cseq_number + 1, auth));
+            }
+            elseif (status == "200")
+            {
+                var from_number, from_tag = SipCall.GetFromFromUDP(content_list);
+                A_SipRegister.HandleRegisterSucceed(from_number);
+            }
+            return;
+        }
+
+        // 处理呼入邀请，并且当前call_id不存在，那么属于新的呼入
+        if (method == "INVITE")
+        {
+            var call_info = this._call_map[call_id];
+            if (call_info == null)
+            {
+                call_info = new SipCall();
+                call_info._call_id = call_id;
+                this._call_map[call_id] = call_info;
+                // 处理呼入
+                if (!call_info.HandleSipInfoCreateCallInInvite(method, "", response_list, content_list, this._self_ip, this._self_port))
+                {
+                    call_info.StopCall("HandleSipInfoCreateCallInInvite失败");
+                }
+                else
+                {
+                    // 暂时不处理，等待对接
+                }
+            }
+            else
+            {
+                call_info.HandleCallSipReInvite(method, "", response_list, content_list);
+            }
+        }
+            // 处理其他协议
+        else
+        {
+            var call_info = this._call_map[call_id];
+            if (call_info == null)
+            {
+                Warn("can't find call id:"..call_id);
+                this.HandleUnknowCall(method, status, response_list, content_list);
+                return;
+            }
+
+            call_info.HandleSipInfo(method, status, response_list, content_list);
+            if (call_info._sip_step == SipStep.TALK_END)
+                this.ReleaseCall(call_info);
+        }
+    }
+
+    //==============================================================================================
+    // 处理未知的呼叫，避免对面频繁发送
+    private fun HandleUnknowCall(string method, string status, List<string> response_list, List<string> content_list)
+    {
+        if (method == "BYE")
+        {
+            var via = SipCall.GetKeyValueFromUDP(content_list, "VIA");
+            var from = SipCall.GetKeyValueFromUDP(content_list, "FROM");
+            var to = SipCall.GetKeyValueFromUDP(content_list, "TO");
+            var cseq = SipCall.GetKeyValueFromUDP(content_list, "CSEQ");
+            var call_id = SipCall.GetKeyValueFromUDP(content_list, "CALL-ID");
+
+            var sip_head = "SIP/2.0 200 OK\r\n";
+			sip_head = sip_head.."Via: "..via.."\r\n";
+			sip_head = sip_head.."From: "..from.."\r\n";
+			sip_head = sip_head.."To: "..to.."\r\n";
+			sip_head = sip_head.."Call-ID: "..call_id.."\r\n";
+			sip_head = sip_head.."CSeq: "..cseq.."\r\n";
+			sip_head = sip_head.."Content-Length: 0\r\n\r\n";
+            this.Send(sip_head);
+        }
+    }
+
+    //==============================================================================================
+
+    // 账号注册
+    public async fun RegisterAccount(string account, string password)
+    {
+        var call_id = String_Md5(String_GenerateID("call_id"));
+        var via_branch = String_Md5(String_GenerateID("via_branch"));
+        var from_tag = String_Md5(String_GenerateID("from_tag"));
+
+        this.Send(this.GenRegister(account, call_id, via_branch, from_tag, 1, ""));
+    }
+
+    protected fun GenRegister(string account, string call_id, string via_branch, string from_tag, int cseq, string auth) : string
+    {
+        // 计算域
+        var remote_sip_domain = this._remote_domain;
+        if (remote_sip_domain == "") remote_sip_domain = this._remote_ip..":"..this._remote_port;
+        var self_sip_domain = this._self_ip..":"..this._self_port;
+
+        var sip = "REGISTER sip:"..remote_sip_domain.." SIP/2.0\r\n";
+        sip = sip.."Via: SIP/2.0/UDP "..self_sip_domain..";rport;branch=z9hG4bK-"..via_branch.."\r\n";
+        sip = sip.."Max-Forwards: 70\r\n";
+        sip = sip.."Contact: <sip:"..account.."@"..self_sip_domain..">\r\n";
+        sip = sip.."From: <sip:"..account.."@"..remote_sip_domain..">;tag="..from_tag.."\r\n";
+        sip = sip.."To: <sip:"..account.."@"..remote_sip_domain..">\r\n";
+        sip = sip.."Call-ID: "..call_id.."\r\n";
+        sip = sip.."CSeq: "..cseq.." REGISTER\r\n";
+        sip = sip.."Expires: "..A_SipRegister.GetExpires().."\r\n";
+        if (auth != null && auth != "") sip = sip.."Authorization: "..auth.."\r\n";
+        sip = sip.."Allow: INVITE,ACK,CANCEL,OPTIONS,BYE,REFER,NOTIFY,INFO,MESSAGE,SUBSCRIBE,INFO\r\n";
+        sip = sip.."User-Agent: ALittle\r\n";
+        sip = sip.."Content-Length: 0\r\n";
+        sip = sip.."\r\n";
+
+        return sip;
+    }
+
+    //==============================================================================================
+
+    // 发起呼叫
+    public fun CallOut(string call_id, string account, string password, string from_number, string to_number, int audio_number, string audio_name) : string, SipCall
+    {
+        var start_time = Time_GetCurTime();
+
+        var client_ssrc = Math_RandomInt(1, 100000);
+        var server_ssrc = Math_RandomInt(1, 100000);
+        var use_rtp = A_RtpSystem.UseRtp(call_id, client_ssrc, server_ssrc, "", 0);
+        if (use_rtp == null) return "RTP资源不足", null;
+
+        var call_info = new SipCall();
+        this._call_map[call_id] = call_info;
+
+        // 保存基础信息
+        call_info._account = account;
+        call_info._password = password;
+        call_info._support_100rel = this._support_100_rel;
+        call_info._to_sip_domain = this._remote_domain;
+
+        // 保存rtp信息
+        call_info._client_ssrc = client_ssrc;
+        call_info._server_ssrc = server_ssrc;
+        call_info._use_rtp = use_rtp;
+
+        // 保存SIP基本信息
+        call_info._via_branch = "z9hG4bK-"..String_Md5(String_GenerateID("via_branch"));
+        call_info._call_id = call_id;
+        call_info._out_or_in = true;
+    
+        call_info._from_sip_ip = this._self_ip;
+        call_info._from_sip_port = this._self_port;
+        call_info._from_tag = String_Md5(String_GenerateID("from_tag"));
+        call_info._from_number = from_number;
+
+        call_info._to_sip_ip = this._remote_ip;
+        call_info._to_sip_port = this._remote_port;
+        call_info._to_tag = "";
+        call_info._to_number = to_number;
+
+        call_info._audio_number = audio_number;
+        call_info._audio_name = audio_name;
+
+        call_info._dtmf_number = "101";
+        call_info._dtmf_rtpmap = "a=rtpmap:101 telephone-event/8000";
+        call_info._dtmf_fmtp = "a=fmtp:101 0-15";
+
+        call_info.CallOutInvite(start_time);
+        return null, call_info;
+    }
+
+    // 停止呼叫
+    public fun StopCall(string call_id, string reason)
+    {
+        var call_info = this._call_map[call_id];
+        if (call_info == null) return;
+
+        call_info.StopCall(reason);
+    }
+
+    // 接听来电
+    public fun AcceptCallIn(string call_id)
+    {
+        var call_info = this._call_map[call_id];
+        if (call_info == null) return;
+
+        call_info.CallInOK();
+    }
+}
+
+public var A_SipSystem = new SipSystem();

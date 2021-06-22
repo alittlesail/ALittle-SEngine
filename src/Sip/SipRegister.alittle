@@ -1,0 +1,200 @@
+
+namespace ALittle;
+
+// 注册信息
+protected struct RegisterInfo
+{
+    string account;			// 账号名
+    string password;			// 密码
+    int last_resgiter_time;	// 上次注册时间
+    int check_register_time;	// 检查注册应答时间
+}
+
+public class SipRegister
+{
+    // 配置属性
+    private int _expires = 3600;		// 注册超时时长
+    private int _max_per_second = 0;	// 每秒最多注册多少个
+    private int _failed_delay = 60;	 // 注册没有应答，多少秒后继续注册。单位秒
+
+    // 所有注册信息
+    private Map<string, RegisterInfo> _register_map = new Map<string, RegisterInfo>();
+
+    // 注册队列
+    private List<RegisterInfo> _register_patch = new List<RegisterInfo>();
+    private int _register_patch_count = 0;
+    private int _register_timer;
+
+    // 超时处理
+    private Map<string, RegisterInfo> _check_map = new Map<string, RegisterInfo>();
+    private int _check_timer;
+
+    // 初始化
+    public fun Setup(Map<string, string> account_map_password, int expires, int max_per_second)
+    {
+        this._expires = expires;
+        this._max_per_second = max_per_second;
+        // 加载所有号码
+        this.ReloadRegister(account_map_password);
+        // 注册定时器
+        this._register_timer = A_LoopSystem.AddTimer(1000, bind(this.HandleRegisterTimer, this), 0, 1000);
+        // 超时检查定时器
+        this._check_timer = A_LoopSystem.AddTimer(1000, bind(this.HandleCheckTimer, this), 0, 1000);
+    }
+
+    // 释放
+    public fun Shutdown()
+    {
+        if (this._check_timer != null)
+        {
+            A_LoopSystem.RemoveTimer(this._check_timer);
+            this._check_timer = null;
+        }
+
+        if (this._register_timer != null)
+        {
+            A_LoopSystem.RemoveTimer(this._register_timer);
+            this._register_timer = null;
+        }
+    }
+
+    // 获取超时时间
+    protected fun GetExpires() : int { return this._expires; }
+
+    // 获取密码
+    protected fun GetPassword(string account) : string
+    {
+        var info = this._register_map[account];
+        if (info == null) return null;
+        return info.password;
+    }
+
+    // 当SIP流程确认注册成功之后，那么调用这个函数
+    protected fun HandleRegisterSucceed(string account)
+    {
+        this._check_map[account] = null;
+    }
+
+    // 重新加载账号配置
+    public fun ReloadRegister(Map<string, string> account_map_password)
+    {
+        // 把当前的信息都认为是要移除的
+        var remove_map = new Map<string, RegisterInfo>();
+        for (var account, value in this._register_map)
+        	remove_map[account] = value;
+
+        // 遍历所有数据，整理到_register_map
+        for (var account, password in account_map_password)
+        {
+            var info = this._register_map[account];
+            // 构造info
+            if (info == null)
+            {
+                info = new RegisterInfo();
+                info.last_resgiter_time = 0;
+                info.check_register_time = 0;
+                info.account = account;
+                info.password = password;
+                this._register_map[account] = info;
+            }
+            else
+            {
+                // 如果csv信息不一致，那么重新标记last_register_time
+                if (info.account != account || info.password != password)
+                {
+                    info.account = account;
+                    info.password = password;
+                    info.last_resgiter_time = 0;
+                    info.check_register_time = 0;
+                }
+            }
+
+            // 移除
+            remove_map[account] = null;
+        }
+
+        // 移除信息
+        for (var account, value in remove_map)
+            this._register_map[account] = null;
+
+        // 清理所有超时注册信息
+        this._check_map = new Map<string, RegisterInfo>();
+
+        // 构建批次注册列表
+        this.BuildRegisterPatch();
+    }
+
+    // 重新构建注册批次
+    private fun BuildRegisterPatch()
+    {
+        // 构建批次
+        this._register_patch = new List<RegisterInfo>();
+        this._register_patch_count = 0;
+        for (var key, value in this._register_map)
+        {
+            this._register_patch_count += 1;
+            this._register_patch[this._register_patch_count] = value;
+        }
+        // 排序
+        List_Sort(this._register_patch, SipRegister.BuildRegisterPatchSort);
+    }
+
+    // 从大到小排序
+    private static BuildRegisterPatchSort(RegisterInfo a, RegisterInfo b) : bool { return a.last_resgiter_time > b.last_resgiter_time; }
+
+    // 处理注册
+    private fun HandleRegisterTimer()
+    {
+        // 获取当前时间
+        var cur_time = Time_GetCurTime();
+
+        // 如果已经没有注册号码了，那么就直接重新建立注册列表
+        if (this._register_patch_count <= 0) this.BuildRegisterPatch();
+
+        var handle_count = 0;
+        while (this._register_patch_count > 0)
+        {
+            // 获取上次注册时间最小的那个
+            var info = this._register_patch[this._register_patch_count];
+            // 如果还未到注册时间，那么就直接退出
+            if (info.last_resgiter_time != 0 && info.last_resgiter_time + this._expires / 2 > cur_time) break;
+                // 设置最新时间
+            info.last_resgiter_time = cur_time;
+            info.check_register_time = info.last_resgiter_time + this._failed_delay;
+            // 执行注册
+            A_SipSystem.RegisterAccount(info.account, info.password);
+            // 添加处理数量
+            handle_count += 1;
+
+            // 移除已注册
+            this._register_patch[this._register_patch_count] = null;
+            this._register_patch_count -= 1;
+
+            // 添加到检查映射表
+            this._check_map[info.account] = info;
+
+            // 如果超出每秒注册数量，那么就直接跳出
+            if (this._max_per_second > 0 && handle_count >= this._max_per_second) break;
+        }
+    }
+
+    // 处理超时
+    private fun HandleCheckTimer()
+    {
+        var cur_time = Time_GetCurTime();
+
+        for (var account, info in this._check_map)
+        {
+            // 如果超时了，那么就再注册
+            if (info.check_register_time < cur_time)
+            {
+                info.last_resgiter_time = cur_time;
+                info.check_register_time = info.last_resgiter_time + this._failed_delay;
+                // 执行注册
+                A_SipSystem.RegisterAccount(info.account, info.password);
+            }
+        }
+    }
+}
+
+public var A_SipRegister = new SipRegister();

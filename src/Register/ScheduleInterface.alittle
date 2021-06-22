@@ -34,39 +34,39 @@ public class __CPPAPIServerSchedule
     public fun ClientSend(int client_id, ALittle.IMessageWriteFactory factory) {}
 
     // 释放rtp
-    public fun ReleaseRtp(int first_port) {}
+    public fun ReleaseRtp(string call_id) {}
     // 释放所有rtp
     public fun ReleaseAllRtp() {}
 
     // 设置线路方的rtp
-    public fun SetRemoteRtp(int first_port, string remote_rtp_ip, int remote_rtp_port) {}
+    public fun SetRemoteRtp(string call_id, string remote_rtp_ip, int remote_rtp_port) {}
 
     // 设置内部转发rtp
-    public fun SetInnerRtp(int first_port, string inner_rtp_ip, int inner_rtp_port) {}
+    public fun SetInnerRtp(string call_id, string inner_rtp_ip, int inner_rtp_port) {}
 
     // 转接到client_id
-    public fun TransferToClient(int first_port, int client_id) {}
+    public fun TransferToClient(string call_id, int client_id) {}
 
     // 清理空闲rtp，可以定时调用
     // idle_delta_time 表示超过多少秒的空闲清理掉
     public fun ClearIdleRtp(int idle_delta_time) {}
 
     // 开始使用rtp
+    // call_id SIP协议中的CALL-ID
 	// client_rtp_ip_string 表示要使用的ip列表，多个用;隔开，用于和客户端互发媒体包。
 	//						因为客户端的网络可能是不同运营商，运营商之前会互相拦截数据包
 	//						所以这里可以开多个不同的运营商ip，来兼容客户端不同的网络
 	// self_rtp_ip 表示要使用的ip，用于和线路方互发RTP包
 	// inner_rtp_ip 表示要使用的ip，用于内部rtp服务器转发媒体包，用于转接的场景
     // remote_rtp_ip 表示线路方的ip，已经确定了就不填空串
-    // call_id SIP协议中的CALL-ID
     // client_id 和客户端通话的标识
     // ssrc 和线路通话的标识
-    public fun UseRtp(int first_port
+    public fun UseRtp(string call_id
                      , string client_rtp_ip_string, int client_rtp_port
                      , string self_rtp_ip, int self_rtp_port
                      , string inner_rtp_ip, int inner_rtp_port
                      , string remote_rtp_ip, int remote_rtp_port
-                     , string call_id, int client_id, int ssrc) {}
+                     , int client_ssrc, int server_ssrc) {}
 
 	// 启动服务器
 	public fun CreateUdpServer(string ip, int port) : bool {}

@@ -22,10 +22,8 @@ ALittle.RouteType = {
 	RT_WEB = 8,
 	RT_DEPLOY = 9,
 	RT_MAP = 10,
-	RT_CALL_CENTER = 11,
-	RT_CALL_INTERFACE = 12,
-	RT_CALL_SIP = 13,
-	RT_CALL_RTP = 14,
+	RT_SIP = 11,
+	RT_RTP = 12,
 }
 
 ALittle.RoutePort = {
@@ -43,10 +41,7 @@ ALittle.RoutePort = {
 	RT_DEPLOY_HTTP = 1800,
 	RT_DEPLOY_CLIENT = 1801,
 	RT_MAP_CONNECT = 1900,
-	RT_CALL_CENTER_CONNECT = 2000,
-	RT_CALL_CENTER_CLIENT = 2001,
-	RT_CALL_SIP_CONNECT = 2100,
-	RT_CALL_INTERFACE_CONNECT = 2200,
+	RT_SIP_CONNECT = 2000,
 }
 
 function ALittle.GetRouteName(route_type, route_num)
@@ -81,16 +76,10 @@ function ALittle.GetRouteName(route_type, route_num)
 		return "Map_" .. route_num
 	end
 	if route_type == 11 then
-		return "CallCenter_" .. route_num
+		return "Sip_" .. route_num
 	end
 	if route_type == 12 then
-		return "CallInterface_" .. route_num
-	end
-	if route_type == 13 then
-		return "CallSip_" .. route_num
-	end
-	if route_type == 14 then
-		return "CallRtp_" .. route_num
+		return "Rtp_" .. route_num
 	end
 	return "Unknow_" .. route_num
 end
