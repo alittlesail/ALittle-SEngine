@@ -339,7 +339,11 @@ public class SipSystem : EventDispatcher
     {
         if (event.self_ip != this._self_ip || event.self_port != this._self_port) return;
 
-        Log("RECEIVE <===", event.remote_ip..":"..event.remote_port);
+        var message_len = String_Len(event.message);
+        // 拦截心跳包
+        if (message_len == 2 && event.message == "\r\n") return;
+
+        Log("RECEIVE <===", event.remote_ip..":"..event.remote_port, message_len);
         Log(event.message);
 
         // 拆分sip协议
@@ -579,6 +583,7 @@ public class SipSystem : EventDispatcher
         var call_info = new SipCall(this);
         this._call_map[call_id] = call_info;
 
+        // 如果是注册账号，那么就使用注册账号的ip和端口
         var sip_account = this._account_map[account];
         if (sip_account != null && sip_account.register_time != null && sip_account.register_time != 0 && Time_GetCurTime() < sip_account.register_time + 3600)
         {

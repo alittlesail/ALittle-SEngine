@@ -265,7 +265,11 @@ function ALittle.SipSystem:HandleSipInfo(event)
 	if event.self_ip ~= self._self_ip or event.self_port ~= self._self_port then
 		return
 	end
-	ALittle.Log("RECEIVE <===", event.remote_ip .. ":" .. event.remote_port)
+	local message_len = ALittle.String_Len(event.message)
+	if message_len == 2 and event.message == "\r\n" then
+		return
+	end
+	ALittle.Log("RECEIVE <===", event.remote_ip .. ":" .. event.remote_port, message_len)
 	ALittle.Log(event.message)
 	local content_list = ALittle.String_Split(event.message, "\r\n")
 	local call_id = ALittle.SipCall.GetKeyValueFromUDP(content_list, "CALL-ID")
