@@ -85,6 +85,7 @@ function ALittle.SipCall:HandleSipInfo(method, status, response_list, content_li
 end
 
 function ALittle.SipCall:StopCall(reason)
+	ALittle.Log(self._call_id .. " Stop Call:", reason)
 	self._stop_reason = reason
 	if self._sip_step == 0 or self._sip_step == 1 or self._sip_step == 2 then
 		self:CallOutCancel()

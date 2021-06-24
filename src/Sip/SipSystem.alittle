@@ -20,10 +20,11 @@ public struct SipCallReleaseEvent : Event
 }
 
 // 支持的号码信息
-protected struct SipAccount
+public struct SipAccount
 {
     string account;
     string password;
+    string route;  // 路由账号，不为空时将account转为route作为实际号码
 
     string sip_ip;
     int sip_port;
@@ -109,15 +110,16 @@ public class SipSystem : EventDispatcher
     }
 
     // 注册账号
-    public fun ReloadAccount(Map<string, string> account_map_password)
+    public fun ReloadAccount(Map<string, SipAccount> account_map_password)
     {
         var new_map = new Map<string, SipAccount>();
-        for (var account, password in account_map_password)
+        for (var account, info in account_map_password)
         {
             var sip_account = new SipAccount();
             new_map[account] = sip_account;
             sip_account.account = account;
-            sip_account.password = password;
+            sip_account.password = info.password;
+            sip_account.route = info.route;
 
             var old_account = this._account_map[account];
             if (old_account != null)
@@ -130,6 +132,14 @@ public class SipSystem : EventDispatcher
         this._account_map = new_map;
     }
 
+    public fun GetAccountRoute(string from_number) : string
+    {
+        var sip_account = this._account_map[from_number];
+        if (sip_account == null) return null;
+
+        return sip_account.route;
+    }
+
     protected fun CheckAccount(string from_number, string remote_ip, int remote_port) : bool
     {
         if (this._remote_ip == remote_ip && this._remote_port == remote_port) return true;
@@ -137,9 +147,10 @@ public class SipSystem : EventDispatcher
         var sip_account = this._account_map[from_number];
         if (sip_account == null) return false;
 
+        if (sip_account.register_time == null || sip_account.register_time == 0) return false;
         if (Time_GetCurTime() > sip_account.register_time + 3600) return false;
 
-        return remote_ip != sip_account.sip_ip && remote_port != sip_account.sip_port;
+        return remote_ip == sip_account.sip_ip && remote_port == sip_account.sip_port;
     }
 
     protected fun AddResend(SipCall call)
@@ -567,6 +578,13 @@ public class SipSystem : EventDispatcher
 
         var call_info = new SipCall(this);
         this._call_map[call_id] = call_info;
+
+        var sip_account = this._account_map[account];
+        if (sip_account != null && sip_account.register_time != null && sip_account.register_time != 0 && Time_GetCurTime() < sip_account.register_time + 3600)
+        {
+            call_info._sip_ip = sip_account.sip_ip;
+            call_info._sip_port = sip_account.sip_port;
+        }
 
         // 保存rtp信息
         call_info._use_rtp = use_rtp;

@@ -28,8 +28,8 @@ option_map = {}
 })
 ALittle.RegStruct(766817303, "ALittle.SipAccount", {
 name = "ALittle.SipAccount", ns_name = "ALittle", rl_name = "SipAccount", hash_code = 766817303,
-name_list = {"account","password","sip_ip","sip_port","register_time"},
-type_list = {"string","string","string","int","int"},
+name_list = {"account","password","route","sip_ip","sip_port","register_time"},
+type_list = {"string","string","string","string","int","int"},
 option_map = {}
 })
 ALittle.RegStruct(588051539, "ALittle.SipCallReleaseEvent", {
@@ -85,11 +85,12 @@ end
 
 function ALittle.SipSystem:ReloadAccount(account_map_password)
 	local new_map = {}
-	for account, password in ___pairs(account_map_password) do
+	for account, info in ___pairs(account_map_password) do
 		local sip_account = {}
 		new_map[account] = sip_account
 		sip_account.account = account
-		sip_account.password = password
+		sip_account.password = info.password
+		sip_account.route = info.route
 		local old_account = self._account_map[account]
 		if old_account ~= nil then
 			sip_account.register_time = old_account.register_time
@@ -100,6 +101,14 @@ function ALittle.SipSystem:ReloadAccount(account_map_password)
 	self._account_map = new_map
 end
 
+function ALittle.SipSystem:GetAccountRoute(from_number)
+	local sip_account = self._account_map[from_number]
+	if sip_account == nil then
+		return nil
+	end
+	return sip_account.route
+end
+
 function ALittle.SipSystem:CheckAccount(from_number, remote_ip, remote_port)
 	if self._remote_ip == remote_ip and self._remote_port == remote_port then
 		return true
@@ -108,10 +117,13 @@ function ALittle.SipSystem:CheckAccount(from_number, remote_ip, remote_port)
 	if sip_account == nil then
 		return false
 	end
+	if sip_account.register_time == nil or sip_account.register_time == 0 then
+		return false
+	end
 	if ALittle.Time_GetCurTime() > sip_account.register_time + 3600 then
 		return false
 	end
-	return remote_ip ~= sip_account.sip_ip and remote_port ~= sip_account.sip_port
+	return remote_ip == sip_account.sip_ip and remote_port == sip_account.sip_port
 end
 
 function ALittle.SipSystem:AddResend(call)
@@ -440,6 +452,11 @@ function ALittle.SipSystem:CallOut(call_id, account, password, from_number, to_n
 	local start_time = ALittle.Time_GetCurTime()
 	local call_info = ALittle.SipCall(self)
 	self._call_map[call_id] = call_info
+	local sip_account = self._account_map[account]
+	if sip_account ~= nil and sip_account.register_time ~= nil and sip_account.register_time ~= 0 and ALittle.Time_GetCurTime() < sip_account.register_time + 3600 then
+		call_info._sip_ip = sip_account.sip_ip
+		call_info._sip_port = sip_account.sip_port
+	end
 	call_info._use_rtp = use_rtp
 	call_info._account = account
 	call_info._password = password

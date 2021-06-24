@@ -160,6 +160,7 @@ public class SipCall
     // 停止通话======================================================================================================================
     public fun StopCall(string reason)
     {
+        Log(this._call_id.." Stop Call:", reason);
         // 保存停止原因
         this._stop_reason = reason;
 
