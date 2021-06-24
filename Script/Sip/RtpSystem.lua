@@ -10,20 +10,14 @@ local ___all_struct = ALittle.GetAllStruct()
 
 ALittle.RegStruct(1995174805, "ALittle.SIP2RTP_NUse", {
 name = "ALittle.SIP2RTP_NUse", ns_name = "ALittle", rl_name = "SIP2RTP_NUse", hash_code = 1995174805,
-name_list = {"call_id","self_rtp_ip","self_rtp_port","client_rtp_ip_list","client_rtp_port","inner_rtp_ip","inner_rtp_port","remote_rtp_ip","remote_rtp_port","client_ssrc","server_ssrc"},
-type_list = {"string","string","int","List<string>","int","string","int","string","int","int","int"},
+name_list = {"call_id","from_rtp_ip","from_rtp_port","from_ssrc","to_rtp_ip","to_rtp_port","to_ssrc"},
+type_list = {"string","string","int","int","string","int","int"},
 option_map = {}
 })
 ALittle.RegStruct(-1961403292, "ALittle.SipUseRtp", {
 name = "ALittle.SipUseRtp", ns_name = "ALittle", rl_name = "SipUseRtp", hash_code = -1961403292,
-name_list = {"client_rtp_ip_list","client_rtp_port","self_rtp_ip","self_rtp_port","inner_rtp_ip","inner_rtp_port","session"},
-type_list = {"List<string>","int","string","int","string","int","ALittle.MsgSessionTemplate<ALittle.MsgSessionNative,carp.CarpMessageWriteFactory>"},
-option_map = {}
-})
-ALittle.RegStruct(-1949158135, "ALittle.SIP2RTP_NSetRemoteRtp", {
-name = "ALittle.SIP2RTP_NSetRemoteRtp", ns_name = "ALittle", rl_name = "SIP2RTP_NSetRemoteRtp", hash_code = -1949158135,
-name_list = {"call_id","remote_rtp_ip","remote_rtp_port"},
-type_list = {"string","string","int"},
+name_list = {"from_rtp_ip","from_rtp_port","to_rtp_ip","to_rtp_port","from_ssrc","to_ssrc","session"},
+type_list = {"string","int","string","int","int","int","ALittle.MsgSessionTemplate<ALittle.MsgSessionNative,carp.CarpMessageWriteFactory>"},
 option_map = {}
 })
 ALittle.RegStruct(1861512184, "ALittle.SIP2RTP_NRelease", {
@@ -40,20 +34,20 @@ option_map = {}
 })
 ALittle.RegStruct(-1599226887, "ALittle.RtpInfo", {
 name = "ALittle.RtpInfo", ns_name = "ALittle", rl_name = "RtpInfo", hash_code = -1599226887,
-name_list = {"client_ip_list","self_ip","inner_ip","call_id_map_port","cur_port","idle_list","total_count","use_count","min_port","max_port","session"},
-type_list = {"List<string>","string","string","Map<string,int>","int","List<int>","int","int","int","int","ALittle.MsgSessionTemplate<ALittle.MsgSessionNative,carp.CarpMessageWriteFactory>"},
+name_list = {"proxy_ip","self_ip","call_id_map_port","cur_port","idle_list","total_count","use_count","min_port","max_port","session"},
+type_list = {"string","string","Map<ALittle.SipSystem,Map<string,int>>","int","List<int>","int","int","int","int","ALittle.MsgSessionTemplate<ALittle.MsgSessionNative,carp.CarpMessageWriteFactory>"},
 option_map = {}
 })
-ALittle.RegStruct(-114578914, "ALittle.SIP2RTP_NSetInnerRtp", {
-name = "ALittle.SIP2RTP_NSetInnerRtp", ns_name = "ALittle", rl_name = "SIP2RTP_NSetInnerRtp", hash_code = -114578914,
-name_list = {"call_id","inner_rtp_ip","inner_rtp_port"},
+ALittle.RegStruct(-936152749, "ALittle.SIP2RTP_NSetToRtp", {
+name = "ALittle.SIP2RTP_NSetToRtp", ns_name = "ALittle", rl_name = "SIP2RTP_NSetToRtp", hash_code = -936152749,
+name_list = {"call_id","rtp_ip","rtp_port"},
 type_list = {"string","string","int"},
 option_map = {}
 })
-ALittle.RegStruct(-27537649, "ALittle.SIP2RTP_NTransferToClient", {
-name = "ALittle.SIP2RTP_NTransferToClient", ns_name = "ALittle", rl_name = "SIP2RTP_NTransferToClient", hash_code = -27537649,
-name_list = {"call_id","client_ssrc"},
-type_list = {"string","int"},
+ALittle.RegStruct(-295216066, "ALittle.SIP2RTP_NSetFromRtp", {
+name = "ALittle.SIP2RTP_NSetFromRtp", ns_name = "ALittle", rl_name = "SIP2RTP_NSetFromRtp", hash_code = -295216066,
+name_list = {"call_id","rtp_ip","rtp_port"},
+type_list = {"string","string","int"},
 option_map = {}
 })
 
@@ -61,24 +55,24 @@ ALittle.RtpSystem = Lua.Class(nil, "ALittle.RtpSystem")
 
 function ALittle.RtpSystem:Ctor()
 	___rawset(self, "_module_map_info", {})
+	___rawset(self, "_group_port_count", 2)
 end
 
-function ALittle.RtpSystem:Setup(client_ip_list, self_ip, inner_ip, start_port, step_count)
-	self._client_ip_list = client_ip_list
+function ALittle.RtpSystem:Setup(proxy_ip, self_ip, start_port, step_count)
+	self._proxy_ip = proxy_ip
 	self._self_ip = self_ip
-	self._inner_ip = inner_ip
 	self._start_port = start_port
 	self._step_count = step_count
 	A_SessionSystem:AddEventListener(___all_struct[-36908822], self, self.HandleAnyDisconnect)
 	A_SessionSystem:AddEventListener(___all_struct[888437463], self, self.HandleAnyConnect)
 end
 
-function ALittle.RtpSystem:Release()
+function ALittle.RtpSystem:Shutdown()
 	A_SessionSystem:RemoveEventListener(___all_struct[-36908822], self, self.HandleAnyDisconnect)
 	A_SessionSystem:RemoveEventListener(___all_struct[888437463], self, self.HandleAnyConnect)
 end
 
-function ALittle.RtpSystem:UseRtp(call_id, client_ssrc, server_ssrc, remote_rtp_ip, remote_rtp_port)
+function ALittle.RtpSystem:UseRtp(sip_system, call_id, from_ip, from_ssrc, to_ssrc)
 	local min = 2.0
 	local target_info = nil
 	local target_route_num = nil
@@ -95,81 +89,95 @@ function ALittle.RtpSystem:UseRtp(call_id, client_ssrc, server_ssrc, remote_rtp_
 	if target_info == nil then
 		return nil
 	end
-	target_info.use_count = target_info.use_count + (3)
+	target_info.use_count = target_info.use_count + (self._group_port_count)
 	local first_port = 0
 	if target_info.idle_list[1] ~= nil then
 		first_port = target_info.idle_list[1]
 		ALittle.List_Remove(target_info.idle_list, 1)
 	else
 		first_port = target_info.cur_port
-		target_info.cur_port = target_info.cur_port + (3)
+		target_info.cur_port = target_info.cur_port + (self._group_port_count)
 	end
-	target_info.call_id_map_port[call_id] = first_port
-	local result = {}
-	result.session = target_info.session
-	result.client_rtp_ip_list = target_info.client_ip_list
-	result.self_rtp_ip = target_info.self_ip
-	result.inner_rtp_ip = target_info.inner_ip
-	result.self_rtp_port = first_port
-	result.client_rtp_port = first_port + 1
-	result.inner_rtp_port = first_port + 2
+	local call_id_map_port = target_info.call_id_map_port[sip_system]
+	if call_id_map_port == nil then
+		call_id_map_port = {}
+		target_info.call_id_map_port[sip_system] = call_id_map_port
+	end
+	call_id_map_port[call_id] = first_port
 	local msg = {}
 	msg.call_id = call_id
-	msg.self_rtp_ip = target_info.self_ip
-	msg.self_rtp_port = result.self_rtp_port
-	msg.client_rtp_ip_list = result.client_rtp_ip_list
-	msg.client_rtp_port = result.client_rtp_port
-	msg.inner_rtp_ip = result.inner_rtp_ip
-	msg.inner_rtp_port = result.inner_rtp_port
-	msg.remote_rtp_ip = remote_rtp_ip
-	msg.remote_rtp_port = remote_rtp_port
-	msg.client_ssrc = client_ssrc
-	msg.server_ssrc = server_ssrc
+	if self._self_ip == from_ip then
+		msg.from_rtp_ip = self._self_ip
+		msg.to_rtp_ip = self._proxy_ip
+	else
+		msg.from_rtp_ip = self._proxy_ip
+		msg.to_rtp_ip = self._self_ip
+	end
+	msg.from_rtp_port = first_port
+	msg.to_rtp_port = first_port + 1
+	msg.from_ssrc = from_ssrc
+	msg.to_ssrc = to_ssrc
 	target_info.session:SendMsg(___all_struct[1995174805], msg)
+	local result = {}
+	result.session = target_info.session
+	result.from_rtp_ip = msg.from_rtp_ip
+	result.from_rtp_port = msg.from_rtp_port
+	result.from_ssrc = from_ssrc
+	result.to_rtp_ip = msg.to_rtp_ip
+	result.to_rtp_port = msg.to_rtp_port
+	result.to_ssrc = to_ssrc
 	return result
 end
 
-function ALittle.RtpSystem:ReleaseRtp(call_id)
-	local info, first_port = self:GetRtpInfoByCallId(call_id)
+function ALittle.RtpSystem:ReleaseRtp(sip_system, call_id)
+	local info, first_port = self:GetRtpInfoByCallId(sip_system, call_id)
 	if info == nil then
 		return
 	end
-	info.call_id_map_port[call_id] = nil
-	info.use_count = info.use_count - (3)
+	local call_id_map_port = info.call_id_map_port[sip_system]
+	if call_id_map_port == nil then
+		return
+	end
+	call_id_map_port[call_id] = nil
+	info.use_count = info.use_count - (self._group_port_count)
 	ALittle.List_Push(info.idle_list, first_port)
 	local msg = {}
 	msg.call_id = call_id
 	info.session:SendMsg(___all_struct[1861512184], msg)
 end
 
-function ALittle.RtpSystem:SetRemoteRtp(call_id, remote_rtp_ip, remote_rtp_port)
-	local info, first_port = self:GetRtpInfoByCallId(call_id)
+function ALittle.RtpSystem:SetFromRtp(sip_system, call_id, rtp_ip, rtp_port)
+	local info, first_port = self:GetRtpInfoByCallId(sip_system, call_id)
 	if info == nil then
 		return
 	end
 	local msg = {}
 	msg.call_id = call_id
-	msg.remote_rtp_ip = remote_rtp_ip
-	msg.remote_rtp_port = remote_rtp_port
-	info.session:SendMsg(___all_struct[-1949158135], msg)
+	msg.rtp_ip = rtp_ip
+	msg.rtp_port = rtp_port
+	info.session:SendMsg(___all_struct[-295216066], msg)
 end
 
-function ALittle.RtpSystem:TransferToClient(call_id, client_ssrc)
-	local info, first_port = self:GetRtpInfoByCallId(call_id)
+function ALittle.RtpSystem:SetToRtp(sip_system, call_id, rtp_ip, rtp_port)
+	local info, first_port = self:GetRtpInfoByCallId(sip_system, call_id)
 	if info == nil then
 		return
 	end
 	local msg = {}
 	msg.call_id = call_id
-	msg.client_ssrc = client_ssrc
-	info.session:SendMsg(___all_struct[-27537649], msg)
+	msg.rtp_ip = rtp_ip
+	msg.rtp_port = rtp_port
+	info.session:SendMsg(___all_struct[-936152749], msg)
 end
 
-function ALittle.RtpSystem:GetRtpInfoByCallId(call_id)
+function ALittle.RtpSystem:GetRtpInfoByCallId(sip_system, call_id)
 	for route_num, info in ___pairs(self._module_map_info) do
-		local first_port = info.call_id_map_port[call_id]
-		if first_port ~= nil then
-			return info, first_port
+		local call_id_map_port = info.call_id_map_port[sip_system]
+		if call_id_map_port ~= nil then
+			local first_port = call_id_map_port[call_id]
+			if first_port ~= nil then
+				return info, first_port
+			end
 		end
 	end
 	return nil, nil
@@ -184,8 +192,10 @@ function ALittle.RtpSystem:HandleAnyDisconnect(event)
 		ALittle.Error("route_id(" .. event.route_num .. " is not exist!!!!!")
 		return
 	end
-	for call_id, port in ___pairs(info.call_id_map_port) do
-		A_SipSystem:StopCall(call_id, "rtp server disconnect")
+	for sip_system, call_id_map_port in ___pairs(info.call_id_map_port) do
+		for call_id, port in ___pairs(call_id_map_port) do
+			sip_system:StopCall(call_id, "rtp server disconnect")
+		end
 	end
 	self._module_map_info[event.route_num] = nil
 end
@@ -202,9 +212,8 @@ function ALittle.RtpSystem:HandleAnyConnect(event)
 	info = {}
 	self._module_map_info[event.route_num] = info
 	info.session = event.session
-	info.client_ip_list = self._client_ip_list
+	info.proxy_ip = self._proxy_ip
 	info.self_ip = self._self_ip
-	info.inner_ip = self._inner_ip
 	info.min_port = self._start_port + (event.route_num - 1) * self._step_count
 	info.max_port = info.min_port + self._step_count - 1
 	info.cur_port = info.min_port
@@ -212,7 +221,7 @@ function ALittle.RtpSystem:HandleAnyConnect(event)
 	info.use_count = 0
 	info.call_id_map_port = {}
 	info.idle_list = {}
-	ALittle.Log("new rtp:" .. info.min_port .. "," .. info.max_port)
+	ALittle.Log("receive new rtp:" .. info.min_port .. "," .. info.max_port)
 end
 
 _G.A_RtpSystem = ALittle.RtpSystem()

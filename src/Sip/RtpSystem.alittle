@@ -3,11 +3,10 @@ namespace ALittle;
 
 protected struct RtpInfo
 {
-    List<string> client_ip_list; // 提供给客户端的 RTP 的地址
-    string self_ip;			// 提供给线路的 RTP 的地址
-    string inner_ip;			// 提供给内部转发的RTP 的地址
+    string proxy_ip;	// 提供给客户端的 RTP 的地址
+    string self_ip;	// 提供给线路的 RTP 的地址
 
-    Map<string, int> call_id_map_port;	// CALLID映射表
+    Map<SipSystem, Map<string, int>> call_id_map_port;	// CALLID映射表
 
     int cur_port;					// 当前递增的ip
     List<int> idle_list;		// 当前空闲列表
@@ -24,12 +23,14 @@ protected struct RtpInfo
 // 使用Rtp结果
 protected struct SipUseRtp
 {
-	List<string> client_rtp_ip_list;	// 开给客户端的
-	int client_rtp_port;			
-	string self_rtp_ip;			// 开给线路方的
-	int self_rtp_port;
-	string inner_rtp_ip;			// 开给内部转发的
-	int inner_rtp_port;
+    string from_rtp_ip;
+    int from_rtp_port;
+
+    string to_rtp_ip;
+    int to_rtp_port;
+
+    int from_ssrc;
+    int to_ssrc;
 
     MsgSession session;	// Rtp连接对象
 }
@@ -45,40 +46,29 @@ public struct SIP2RTP_NUse
 {
     string call_id;
 
-    string self_rtp_ip;
-    int self_rtp_port;
+    // 和呼叫方的媒体通讯标识
+    string from_rtp_ip;
+    int from_rtp_port;
+    int from_ssrc;
 
-    List<string> client_rtp_ip_list;
-    int client_rtp_port;
-    string inner_rtp_ip;
-    int inner_rtp_port;
-
-    string remote_rtp_ip;
-    int remote_rtp_port;
-
-    int client_ssrc;
-    int server_ssrc;
+    // 和被呼叫方的媒体通讯表示
+    string to_rtp_ip;
+    int to_rtp_port;
+    int to_ssrc;
 }
 
-// SIP通知RTP，转接给客户端端
-public struct SIP2RTP_NTransferToClient
+public struct SIP2RTP_NSetFromRtp
 {
     string call_id;
-    int client_ssrc;
+    string rtp_ip;
+    int rtp_port;
 }
 
-public struct SIP2RTP_NSetRemoteRtp
+public struct SIP2RTP_NSetToRtp
 {
     string call_id;
-    string remote_rtp_ip;
-    int remote_rtp_port;
-}
-
-public struct SIP2RTP_NSetInnerRtp
-{
-    string call_id;
-    string inner_rtp_ip;
-    int inner_rtp_port;
+    string rtp_ip;
+    int rtp_port;
 }
 
 protected class RtpSystem
@@ -86,17 +76,19 @@ protected class RtpSystem
     // 当前所有的rtp服务器信息
     private Map<int, RtpInfo> _module_map_info = new Map<int, RtpInfo>();
 
-    private List<string> _client_ip_list;	// 提供给客户端的ip列表
-    private string _self_ip;		// 提供给线路方的ip
-    private string _inner_ip;		// 内部转发ip
+    private string _proxy_ip;	// 提供给客户端的ip列表
+    private string _self_ip;	 		// 提供给线路方的ip
+
     private int _start_port;		// RTP使用的起始端口
     private int _step_count;		// 每个RTP服务器使用的端口数量
 
-    public fun Setup(List<string> client_ip_list, string self_ip, string inner_ip, int start_port, int step_count)
+    private int _group_port_count = 2;	// 搭配使用的端口数量个数
+
+    public fun Setup(string proxy_ip, string self_ip, int start_port, int step_count)
     {
-        this._client_ip_list = client_ip_list;
+        this._proxy_ip = proxy_ip;
         this._self_ip = self_ip;
-        this._inner_ip = inner_ip;
+
         this._start_port = start_port;
         this._step_count = step_count;
 
@@ -104,14 +96,14 @@ protected class RtpSystem
         A_SessionSystem.AddEventListener(this, this.HandleAnyConnect);
     }
 
-    public fun Release()
+    public fun Shutdown()
     {
         A_SessionSystem.RemoveEventListener(this, this.HandleAnyDisconnect);
         A_SessionSystem.RemoveEventListener(this, this.HandleAnyConnect);
     }
 
-    public fun UseRtp(string call_id, int client_ssrc, int server_ssrc
-                     , string remote_rtp_ip, int remote_rtp_port) : SipUseRtp
+    // from_ip 表示呼叫来源的ip
+    public fun UseRtp(SipSystem sip_system, string call_id, string from_ip, int from_ssrc, int to_ssrc) : SipUseRtp
     {
         // 先找到利用率最低的那个Rtp
         var min = 2.0;
@@ -135,7 +127,7 @@ protected class RtpSystem
         if (target_info == null) return null;
 
         // 个数添加
-        target_info.use_count += 3;
+        target_info.use_count += this._group_port_count;
 
         // 获取新的端口
         var first_port = 0;
@@ -147,53 +139,69 @@ protected class RtpSystem
         else
         {
             first_port = target_info.cur_port;
-            target_info.cur_port += 3;
+            target_info.cur_port += this._group_port_count;
         }
 
         // 把呼叫保存起来
-        target_info.call_id_map_port[call_id] = first_port;
+        var call_id_map_port = target_info.call_id_map_port[sip_system];
+        if (call_id_map_port == null)
+        {
+            call_id_map_port = new Map<string, int>();
+            target_info.call_id_map_port[sip_system] = call_id_map_port;
+        }
+        call_id_map_port[call_id] = first_port;
     
-        // 设置返回值
-		var result = new SipUseRtp();
-        result.session = target_info.session;
-
-        result.client_rtp_ip_list = target_info.client_ip_list;
-        result.self_rtp_ip = target_info.self_ip;
-        result.inner_rtp_ip = target_info.inner_ip;
-        result.self_rtp_port = first_port;
-        result.client_rtp_port = first_port + 1;
-        result.inner_rtp_port = first_port + 2;
-
         // 向Rtp服务器发送通知
         var msg = new SIP2RTP_NUse();
         msg.call_id = call_id;
 
-        msg.self_rtp_ip = target_info.self_ip;
-        msg.self_rtp_port = result.self_rtp_port;
-        msg.client_rtp_ip_list = result.client_rtp_ip_list;
-        msg.client_rtp_port = result.client_rtp_port;
-        msg.inner_rtp_ip = result.inner_rtp_ip;
-        msg.inner_rtp_port = result.inner_rtp_port;
+        // 如果来源ip是线路方，那么就是从线路方呼叫到客户端
+        if (this._self_ip == from_ip)
+        {
+            msg.from_rtp_ip = this._self_ip;
+            msg.to_rtp_ip = this._proxy_ip;
+        }
+        else
+        {
+            msg.from_rtp_ip = this._proxy_ip;
+            msg.to_rtp_ip = this._self_ip;
+        }
 
-        msg.remote_rtp_ip = remote_rtp_ip;
-        msg.remote_rtp_port = remote_rtp_port;
+        msg.from_rtp_port = first_port;
+        msg.to_rtp_port = first_port + 1;
 
-        msg.client_ssrc = client_ssrc;
-        msg.server_ssrc = server_ssrc;
+        msg.from_ssrc = from_ssrc;
+        msg.to_ssrc = to_ssrc;
+
         target_info.session.SendMsg(msg);
+
+        // 设置返回值
+		var result = new SipUseRtp();
+        result.session = target_info.session;
+        
+        result.from_rtp_ip = msg.from_rtp_ip;
+        result.from_rtp_port = msg.from_rtp_port;
+        result.from_ssrc = from_ssrc;
+
+        result.to_rtp_ip = msg.to_rtp_ip;
+        result.to_rtp_port = msg.to_rtp_port;
+        result.to_ssrc = to_ssrc;
 
         // 返回结果
         return result;
     }
 
-    public fun ReleaseRtp(string call_id)
+    public fun ReleaseRtp(SipSystem sip_system, string call_id)
     {
-        var info, first_port = this.GetRtpInfoByCallId(call_id);
+        var info, first_port = this.GetRtpInfoByCallId(sip_system, call_id);
         if (info == null) return;
 
-        info.call_id_map_port[call_id] = null;
+        var call_id_map_port = info.call_id_map_port[sip_system];
+        if (call_id_map_port == null) return;
+
+        call_id_map_port[call_id] = null;
     
-        info.use_count -= 3;
+        info.use_count -= this._group_port_count;
         List_Push(info.idle_list, first_port);
     
         var msg = new SIP2RTP_NRelease();
@@ -201,38 +209,43 @@ protected class RtpSystem
         info.session.SendMsg(msg);
     }
 
-    // 设置远端rtp
-    public fun SetRemoteRtp(string call_id, string remote_rtp_ip, int remote_rtp_port)
+    // 设置呼叫方Rtp
+    public fun SetFromRtp(SipSystem sip_system, string call_id, string rtp_ip, int rtp_port)
     {
-        var info, first_port = this.GetRtpInfoByCallId(call_id);
+        var info, first_port = this.GetRtpInfoByCallId(sip_system, call_id);
         if (info == null) return;
 
-        var msg = new SIP2RTP_NSetRemoteRtp();
+        var msg = new SIP2RTP_NSetFromRtp();
         msg.call_id = call_id;
-        msg.remote_rtp_ip = remote_rtp_ip;
-        msg.remote_rtp_port = remote_rtp_port;
+        msg.rtp_ip = rtp_ip;
+        msg.rtp_port = rtp_port;
         info.session.SendMsg(msg);
     }
 
-    // 转接到客户端
-    public fun TransferToClient(string call_id, int client_ssrc)
+    // 设置被呼叫方Rtp
+    public fun SetToRtp(SipSystem sip_system, string call_id, string rtp_ip, int rtp_port)
     {
-        var info, first_port = this.GetRtpInfoByCallId(call_id);
+        var info, first_port = this.GetRtpInfoByCallId(sip_system, call_id);
         if (info == null) return;
 
-        var msg = new SIP2RTP_NTransferToClient();
+        var msg = new SIP2RTP_NSetToRtp();
         msg.call_id = call_id;
-        msg.client_ssrc = client_ssrc;
+        msg.rtp_ip = rtp_ip;
+        msg.rtp_port = rtp_port;
         info.session.SendMsg(msg);
     }
 
     // 根据call_id来返回Rtp信息，以及对应的第一个端口
-    private fun GetRtpInfoByCallId(string call_id) : RtpInfo, int
+    private fun GetRtpInfoByCallId(SipSystem sip_system, string call_id) : RtpInfo, int
     {
         for (var route_num, info in this._module_map_info)
         {
-            var first_port = info.call_id_map_port[call_id];
-            if (first_port != null) return info, first_port;
+            var call_id_map_port = info.call_id_map_port[sip_system];
+            if (call_id_map_port != null)
+            {
+                var first_port = call_id_map_port[call_id];
+                if (first_port != null) return info, first_port;
+            }
         }
 
         return null, null;
@@ -251,8 +264,11 @@ protected class RtpSystem
         }
 
         // 处理通话信息
-        for (var call_id, port in info.call_id_map_port)
-            A_SipSystem.StopCall(call_id, "rtp server disconnect");
+        for (var sip_system, call_id_map_port in info.call_id_map_port)
+        {
+            for (var call_id, port in call_id_map_port)
+                sip_system.StopCall(call_id, "rtp server disconnect");
+        }
 
         // 删除信息
         this._module_map_info[event.route_num] = null;
@@ -278,9 +294,8 @@ protected class RtpSystem
         info.session = event.session;
 
         // 增加RTP信息
-        info.client_ip_list = this._client_ip_list;
+        info.proxy_ip = this._proxy_ip;
         info.self_ip = this._self_ip;
-        info.inner_ip = this._inner_ip;
         info.min_port = this._start_port + (event.route_num - 1) * this._step_count;
         info.max_port = info.min_port + this._step_count - 1;
 
@@ -289,10 +304,10 @@ protected class RtpSystem
         info.total_count = info.max_port - info.min_port + 1;
         info.use_count = 0;
 
-    	info.call_id_map_port = new Map<string, int>();	// CALLID映射表
+    	info.call_id_map_port = new Map<SipSystem, Map<string, int>>();	// CALLID映射表
     	info.idle_list = new List<int>();		// 当前空闲列表
 
-        Log("new rtp:"..info.min_port..","..info.max_port);
+        Log("receive new rtp:"..info.min_port..","..info.max_port);
     }
 }
 

@@ -12,6 +12,9 @@ protected struct RegisterInfo
 
 public class SipRegister
 {
+    // 归属的SIP系统
+    private SipSystem _sip_system;
+
     // 配置属性
     private int _expires = 3600;		// 注册超时时长
     private int _max_per_second = 0;	// 每秒最多注册多少个
@@ -30,12 +33,11 @@ public class SipRegister
     private int _check_timer;
 
     // 初始化
-    public fun Setup(Map<string, string> account_map_password, int expires, int max_per_second)
+    public fun Setup(SipSystem sip_system, int expires, int max_per_second)
     {
+        this._sip_system = sip_system;
         this._expires = expires;
         this._max_per_second = max_per_second;
-        // 加载所有号码
-        this.ReloadRegister(account_map_password);
         // 注册定时器
         this._register_timer = A_LoopSystem.AddTimer(1000, bind(this.HandleRegisterTimer, this), 0, 1000);
         // 超时检查定时器
@@ -62,7 +64,7 @@ public class SipRegister
     protected fun GetExpires() : int { return this._expires; }
 
     // 获取密码
-    protected fun GetPassword(string account) : string
+    public fun GetPassword(string account) : string
     {
         var info = this._register_map[account];
         if (info == null) return null;
@@ -162,7 +164,7 @@ public class SipRegister
             info.last_resgiter_time = cur_time;
             info.check_register_time = info.last_resgiter_time + this._failed_delay;
             // 执行注册
-            A_SipSystem.RegisterAccount(info.account, info.password);
+            this._sip_system.RegisterAccount(info.account, info.password);
             // 添加处理数量
             handle_count += 1;
 
@@ -191,10 +193,8 @@ public class SipRegister
                 info.last_resgiter_time = cur_time;
                 info.check_register_time = info.last_resgiter_time + this._failed_delay;
                 // 执行注册
-                A_SipSystem.RegisterAccount(info.account, info.password);
+                this._sip_system.RegisterAccount(info.account, info.password);
             }
         }
     }
 }
-
-public var A_SipRegister = new SipRegister();

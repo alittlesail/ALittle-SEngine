@@ -20,6 +20,24 @@ name_list = {"target","call_info"},
 type_list = {"ALittle.EventDispatcher","ALittle.SipCall"},
 option_map = {}
 })
+ALittle.RegStruct(997595746, "ALittle.SipCallInEvent", {
+name = "ALittle.SipCallInEvent", ns_name = "ALittle", rl_name = "SipCallInEvent", hash_code = 997595746,
+name_list = {"target","call_info"},
+type_list = {"ALittle.EventDispatcher","ALittle.SipCall"},
+option_map = {}
+})
+ALittle.RegStruct(766817303, "ALittle.SipAccount", {
+name = "ALittle.SipAccount", ns_name = "ALittle", rl_name = "SipAccount", hash_code = 766817303,
+name_list = {"account","password","sip_ip","sip_port","register_time"},
+type_list = {"string","string","string","int","int"},
+option_map = {}
+})
+ALittle.RegStruct(588051539, "ALittle.SipCallReleaseEvent", {
+name = "ALittle.SipCallReleaseEvent", ns_name = "ALittle", rl_name = "SipCallReleaseEvent", hash_code = 588051539,
+name_list = {"target","call_info"},
+type_list = {"ALittle.EventDispatcher","ALittle.SipCall"},
+option_map = {}
+})
 
 assert(ALittle.EventDispatcher, " extends class:ALittle.EventDispatcher is nil")
 ALittle.SipSystem = Lua.Class(ALittle.EventDispatcher, "ALittle.SipSystem")
@@ -30,16 +48,19 @@ function ALittle.SipSystem:Ctor()
 	___rawset(self, "_remote_ip", "127.0.0.1")
 	___rawset(self, "_remote_port", 5060)
 	___rawset(self, "_remote_domain", "")
+	___rawset(self, "_account_map", {})
 	___rawset(self, "_support_100_rel", false)
 	___rawset(self, "_call_map", {})
 end
 
-function ALittle.SipSystem:Setup(self_ip, self_port, remote_ip, remote_port, remote_domain)
+function ALittle.SipSystem:Setup(sip_register, self_ip, self_port, remote_ip, remote_port, remote_domain, support_100_rel)
+	self._sip_register = sip_register
 	self._self_ip = self_ip
 	self._self_port = self_port
 	self._remote_ip = remote_ip
 	self._remote_port = remote_port
 	self._remote_domain = remote_domain
+	self._support_100_rel = support_100_rel
 	__CPPAPI_ServerSchedule:CreateUdpServer(self._self_ip, self._self_port)
 	A_UdpSystem:AddEventListener(___all_struct[-1948184705], self, self.HandleSipInfo)
 	self._resend_weak_map = ALittle.CreateKeyWeakMap()
@@ -62,6 +83,37 @@ function ALittle.SipSystem:Shutdown()
 	end
 end
 
+function ALittle.SipSystem:ReloadAccount(account_map_password)
+	local new_map = {}
+	for account, password in ___pairs(account_map_password) do
+		local sip_account = {}
+		new_map[account] = sip_account
+		sip_account.account = account
+		sip_account.password = password
+		local old_account = self._account_map[account]
+		if old_account ~= nil then
+			sip_account.register_time = old_account.register_time
+			sip_account.sip_ip = old_account.sip_ip
+			sip_account.sip_port = old_account.sip_port
+		end
+	end
+	self._account_map = new_map
+end
+
+function ALittle.SipSystem:CheckAccount(from_number, remote_ip, remote_port)
+	if self._remote_ip == remote_ip and self._remote_port == remote_port then
+		return true
+	end
+	local sip_account = self._account_map[from_number]
+	if sip_account == nil then
+		return false
+	end
+	if ALittle.Time_GetCurTime() > sip_account.register_time + 3600 then
+		return false
+	end
+	return remote_ip ~= sip_account.sip_ip and remote_port ~= sip_account.sip_port
+end
+
 function ALittle.SipSystem:AddResend(call)
 	self._resend_weak_map[call] = true
 end
@@ -70,18 +122,25 @@ function ALittle.SipSystem:AddSession(call)
 	self._session_weak_map[call] = true
 end
 
-function ALittle.SipSystem:Send(message)
-	__CPPAPI_ServerSchedule:SendUdpMessage(self._self_ip, self._self_port, self._remote_ip, self._remote_port, message)
+function ALittle.SipSystem:Send(message, sip_ip, sip_port)
+	if sip_ip == nil or sip_ip == "" or sip_port == 0 or sip_port == nil then
+		sip_ip = self._remote_ip
+		sip_port = self._remote_port
+	end
+	__CPPAPI_ServerSchedule:SendUdpMessage(self._self_ip, self._self_port, sip_ip, sip_port, message)
 	ALittle.Log("SEND==>")
 	ALittle.Log(message)
 end
 
 function ALittle.SipSystem:ReleaseCall(call_info)
 	ALittle.Log("Release call_id:" .. call_info._call_id)
-	A_RtpSystem:ReleaseRtp(call_info._call_id)
+	A_RtpSystem:ReleaseRtp(self, call_info._call_id)
 	self._call_map[call_info._call_id] = nil
 	self._session_weak_map[call_info] = nil
 	self._resend_weak_map[call_info] = nil
+	local event = {}
+	event.call_info = call_info
+	self:DispatchEvent(___all_struct[588051539], event)
 end
 
 function ALittle.SipSystem:HandleUpdateResend()
@@ -140,7 +199,7 @@ function ALittle.SipSystem:HandleUpdateResend()
 				end
 				remove_map[call_info] = true
 			end
-		elseif call_info._sip_step == 6 then
+		elseif call_info._sip_step == 5 or call_info._sip_step == 6 then
 			if cur_time - call_info._sip_send_time > 60 * 10 then
 				if remove_map == nil then
 					remove_map = {}
@@ -191,6 +250,9 @@ function ALittle.SipSystem:HandleUpdateSession()
 end
 
 function ALittle.SipSystem:HandleSipInfo(event)
+	if event.self_ip ~= self._self_ip or event.self_port ~= self._self_port then
+		return
+	end
 	ALittle.Log("RECEIVE <===", event.remote_ip .. ":" .. event.remote_port)
 	ALittle.Log(event.message)
 	local content_list = ALittle.String_Split(event.message, "\r\n")
@@ -213,6 +275,10 @@ function ALittle.SipSystem:HandleSipInfo(event)
 		end
 		status = response_list[2]
 	end
+	if method == "REGISTER" then
+		self:HandleRegister(method, status, response_list, content_list, event.remote_ip, event.remote_port)
+		return
+	end
 	local cseq_number, cseq_method = ALittle.SipCall.GetCseqFromUDP(content_list)
 	if cseq_method == "REGISTER" then
 		if status == "401" then
@@ -222,24 +288,28 @@ function ALittle.SipSystem:HandleSipInfo(event)
 			if uri == nil or uri == "" then
 				uri = self._remote_ip .. ":" .. self._remote_port
 			end
-			local auth = ALittle.SipCall.GenAuth(nonce, realm, from_number, A_SipRegister:GetPassword(from_number), "REGISTER", uri)
+			local auth = ALittle.SipCall.GenAuth(nonce, realm, from_number, self._sip_register:GetPassword(from_number), "REGISTER", uri)
 			local via_branch = ALittle.String_Md5(ALittle.String_GenerateID("via_branch"))
-			self:Send(self:GenRegister(from_number, call_id, via_branch, from_tag, cseq_number + 1, auth))
+			self:Send(self:GenRegister(from_number, call_id, via_branch, from_tag, cseq_number + 1, auth), event.remote_ip, event.remote_port)
 		elseif status == "200" then
 			local from_number, from_tag = ALittle.SipCall.GetFromFromUDP(content_list)
-			A_SipRegister:HandleRegisterSucceed(from_number)
+			self._sip_register:HandleRegisterSucceed(from_number)
 		end
 		return
 	end
 	if method == "INVITE" then
 		local call_info = self._call_map[call_id]
 		if call_info == nil then
-			call_info = ALittle.SipCall()
+			call_info = ALittle.SipCall(self)
 			call_info._call_id = call_id
 			self._call_map[call_id] = call_info
-			if not call_info:HandleSipInfoCreateCallInInvite(method, "", response_list, content_list, self._self_ip, self._self_port) then
-				call_info:StopCall("HandleSipInfoCreateCallInInvite失败")
+			local error = call_info:HandleSipInfoCreateCallInInvite(method, "", response_list, content_list, self._self_ip, self._self_port, event.remote_ip, event.remote_port)
+			if error ~= nil then
+				call_info:StopCall(error)
 			else
+				local call_in_event = {}
+				call_in_event.call_info = call_info
+				self:DispatchEvent(___all_struct[997595746], call_in_event)
 			end
 		else
 			call_info:HandleCallSipReInvite(method, "", response_list, content_list)
@@ -248,7 +318,7 @@ function ALittle.SipSystem:HandleSipInfo(event)
 		local call_info = self._call_map[call_id]
 		if call_info == nil then
 			ALittle.Warn("can't find call id:" .. call_id)
-			self:HandleUnknowCall(method, status, response_list, content_list)
+			self:HandleUnknowCall(method, status, response_list, content_list, event.remote_ip, event.remote_port)
 			return
 		end
 		call_info:HandleSipInfo(method, status, response_list, content_list)
@@ -258,7 +328,61 @@ function ALittle.SipSystem:HandleSipInfo(event)
 	end
 end
 
-function ALittle.SipSystem:HandleUnknowCall(method, status, response_list, content_list)
+function ALittle.SipSystem:HandleRegister(method, status, response_list, content_list, remote_ip, remote_port)
+	local via = ALittle.SipCall.GetKeyValueFromUDP(content_list, "VIA")
+	local from = ALittle.SipCall.GetKeyValueFromUDP(content_list, "FROM")
+	local to = ALittle.SipCall.GetKeyValueFromUDP(content_list, "TO")
+	local cseq = ALittle.SipCall.GetKeyValueFromUDP(content_list, "CSEQ")
+	local call_id = ALittle.SipCall.GetKeyValueFromUDP(content_list, "CALL-ID")
+	local max_forwards = ALittle.SipCall.GetKeyValueFromUDP(content_list, "MAX-FORWARDS")
+	local expires = ALittle.SipCall.GetKeyValueFromUDP(content_list, "EXPIRES")
+	local allow = ALittle.SipCall.GetKeyValueFromUDP(content_list, "ALLOW")
+	if ALittle.String_Find(to, "tag=") == nil then
+		to = to .. ";tag=" .. ALittle.String_Md5(ALittle.String_GenerateID("to_tag"))
+	end
+	local authorization = ALittle.SipCall.GetKeyValueFromUDP(content_list, "AUTHORIZATION")
+	if authorization == nil then
+		local sip_head = "SIP/2.0 401 Unauthorized\r\n"
+		sip_head = sip_head .. "Via: " .. via .. "\r\n"
+		sip_head = sip_head .. "From: " .. from .. "\r\n"
+		sip_head = sip_head .. "To: " .. to .. "\r\n"
+		sip_head = sip_head .. "Call-ID: " .. call_id .. "\r\n"
+		sip_head = sip_head .. "CSeq: " .. cseq .. "\r\n"
+		sip_head = sip_head .. "Max-Forwards: " .. max_forwards .. "\r\n"
+		sip_head = sip_head .. "Allow: " .. allow .. "\r\n"
+		sip_head = sip_head .. "WWW-Authenticate: Digest realm=\"ALittle\", nonce=\"" .. ALittle.String_Md5(ALittle.String_GenerateID("nonce")) .. "\", stale=FALSE, algorithm=MD5\r\n"
+		sip_head = sip_head .. "Server: ALittle\r\n"
+		sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
+		self:Send(sip_head, remote_ip, remote_port)
+		return
+	end
+	local nonce, realm, uri, response = ALittle.SipCall.GetNonceRealmFromUDP(content_list, "AUTHORIZATION")
+	local from_number, from_tag = ALittle.SipCall.GetFromFromUDP(content_list)
+	local sip_account = self._account_map[from_number]
+	if sip_account ~= nil then
+		local gen_response = ALittle.SipCall.GenAuthResponse(nonce, realm, sip_account.account, sip_account.password, "REGISTER", uri)
+		if gen_response == response then
+			sip_account.register_time = ALittle.Time_GetCurTime()
+			sip_account.sip_ip = remote_ip
+			sip_account.sip_port = remote_port
+			local sip_head = "SIP/2.0 200 OK\r\n"
+			sip_head = sip_head .. "Via: " .. via .. "\r\n"
+			sip_head = sip_head .. "From: " .. from .. "\r\n"
+			sip_head = sip_head .. "To: " .. to .. "\r\n"
+			sip_head = sip_head .. "Call-ID: " .. call_id .. "\r\n"
+			sip_head = sip_head .. "CSeq: " .. cseq .. "\r\n"
+			sip_head = sip_head .. "Max-Forwards: " .. max_forwards .. "\r\n"
+			sip_head = sip_head .. "Expires: " .. expires .. "\r\n"
+			sip_head = sip_head .. "Allow: " .. allow .. "\r\n"
+			sip_head = sip_head .. "Server: ALittle\r\n"
+			sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
+			self:Send(sip_head, remote_ip, remote_port)
+			return
+		end
+	end
+end
+
+function ALittle.SipSystem:HandleUnknowCall(method, status, response_list, content_list, remote_ip, remote_port)
 	if method == "BYE" then
 		local via = ALittle.SipCall.GetKeyValueFromUDP(content_list, "VIA")
 		local from = ALittle.SipCall.GetKeyValueFromUDP(content_list, "FROM")
@@ -272,7 +396,7 @@ function ALittle.SipSystem:HandleUnknowCall(method, status, response_list, conte
 		sip_head = sip_head .. "Call-ID: " .. call_id .. "\r\n"
 		sip_head = sip_head .. "CSeq: " .. cseq .. "\r\n"
 		sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
-		self:Send(sip_head)
+		self:Send(sip_head, remote_ip, remote_port)
 	end
 end
 
@@ -280,7 +404,7 @@ function ALittle.SipSystem:RegisterAccount(account, password)
 	local call_id = ALittle.String_Md5(ALittle.String_GenerateID("call_id"))
 	local via_branch = ALittle.String_Md5(ALittle.String_GenerateID("via_branch"))
 	local from_tag = ALittle.String_Md5(ALittle.String_GenerateID("from_tag"))
-	self:Send(self:GenRegister(account, call_id, via_branch, from_tag, 1, ""))
+	self:Send(self:GenRegister(account, call_id, via_branch, from_tag, 1, ""), self._remote_ip, self._remote_port)
 end
 ALittle.SipSystem.RegisterAccount = Lua.CoWrap(ALittle.SipSystem.RegisterAccount)
 
@@ -298,7 +422,7 @@ function ALittle.SipSystem:GenRegister(account, call_id, via_branch, from_tag, c
 	sip = sip .. "To: <sip:" .. account .. "@" .. remote_sip_domain .. ">\r\n"
 	sip = sip .. "Call-ID: " .. call_id .. "\r\n"
 	sip = sip .. "CSeq: " .. cseq .. " REGISTER\r\n"
-	sip = sip .. "Expires: " .. A_SipRegister:GetExpires() .. "\r\n"
+	sip = sip .. "Expires: " .. self._sip_register:GetExpires() .. "\r\n"
 	if auth ~= nil and auth ~= "" then
 		sip = sip .. "Authorization: " .. auth .. "\r\n"
 	end
@@ -309,23 +433,18 @@ function ALittle.SipSystem:GenRegister(account, call_id, via_branch, from_tag, c
 	return sip
 end
 
-function ALittle.SipSystem:CallOut(call_id, account, password, from_number, to_number, audio_number, audio_name)
-	local start_time = ALittle.Time_GetCurTime()
-	local client_ssrc = ALittle.Math_RandomInt(1, 100000)
-	local server_ssrc = ALittle.Math_RandomInt(1, 100000)
-	local use_rtp = A_RtpSystem:UseRtp(call_id, client_ssrc, server_ssrc, "", 0)
-	if use_rtp == nil then
-		return "RTP资源不足", nil
+function ALittle.SipSystem:CallOut(call_id, account, password, from_number, to_number, audio_number, audio_name, use_rtp)
+	if self._call_map[call_id] ~= nil then
+		return "call_id已存在", nil
 	end
-	local call_info = ALittle.SipCall()
+	local start_time = ALittle.Time_GetCurTime()
+	local call_info = ALittle.SipCall(self)
 	self._call_map[call_id] = call_info
+	call_info._use_rtp = use_rtp
 	call_info._account = account
 	call_info._password = password
 	call_info._support_100rel = self._support_100_rel
 	call_info._to_sip_domain = self._remote_domain
-	call_info._client_ssrc = client_ssrc
-	call_info._server_ssrc = server_ssrc
-	call_info._use_rtp = use_rtp
 	call_info._via_branch = "z9hG4bK-" .. ALittle.String_Md5(ALittle.String_GenerateID("via_branch"))
 	call_info._call_id = call_id
 	call_info._out_or_in = true
@@ -362,5 +481,4 @@ function ALittle.SipSystem:AcceptCallIn(call_id)
 	call_info:CallInOK()
 end
 
-_G.A_SipSystem = ALittle.SipSystem()
 end

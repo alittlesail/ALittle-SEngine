@@ -26,10 +26,10 @@ function ALittle.SipRegister:Ctor()
 	___rawset(self, "_check_map", {})
 end
 
-function ALittle.SipRegister:Setup(account_map_password, expires, max_per_second)
+function ALittle.SipRegister:Setup(sip_system, expires, max_per_second)
+	self._sip_system = sip_system
 	self._expires = expires
 	self._max_per_second = max_per_second
-	self:ReloadRegister(account_map_password)
 	self._register_timer = A_LoopSystem:AddTimer(1000, Lua.Bind(self.HandleRegisterTimer, self), 0, 1000)
 	self._check_timer = A_LoopSystem:AddTimer(1000, Lua.Bind(self.HandleCheckTimer, self), 0, 1000)
 end
@@ -119,7 +119,7 @@ function ALittle.SipRegister:HandleRegisterTimer()
 		end
 		info.last_resgiter_time = cur_time
 		info.check_register_time = info.last_resgiter_time + self._failed_delay
-		A_SipSystem:RegisterAccount(info.account, info.password)
+		self._sip_system:RegisterAccount(info.account, info.password)
 		handle_count = handle_count + (1)
 		self._register_patch[self._register_patch_count] = nil
 		self._register_patch_count = self._register_patch_count - (1)
@@ -136,10 +136,9 @@ function ALittle.SipRegister:HandleCheckTimer()
 		if info.check_register_time < cur_time then
 			info.last_resgiter_time = cur_time
 			info.check_register_time = info.last_resgiter_time + self._failed_delay
-			A_SipSystem:RegisterAccount(info.account, info.password)
+			self._sip_system:RegisterAccount(info.account, info.password)
 		end
 	end
 end
 
-_G.A_SipRegister = ALittle.SipRegister()
 end

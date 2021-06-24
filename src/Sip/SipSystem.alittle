@@ -7,14 +7,44 @@ public struct SipCallStepEvent : Event
     SipCall call_info;
 }
 
-protected class SipSystem : EventDispatcher
+// 有新的呼入号码
+public struct SipCallInEvent : Event
 {
+    SipCall call_info;
+}
+
+// 释放呼叫
+public struct SipCallReleaseEvent : Event
+{
+    SipCall call_info;
+}
+
+// 支持的号码信息
+protected struct SipAccount
+{
+    string account;
+    string password;
+
+    string sip_ip;
+    int sip_port;
+
+    int register_time;
+}
+
+public class SipSystem : EventDispatcher
+{
+    // 注册机制
+    private SipRegister _sip_register;
+
     // 配置信息
     private string _self_ip = "127.0.0.1";
     private int _self_port = 5060;
     private string _remote_ip = "127.0.0.1";
     private int _remote_port = 5060;
     private string _remote_domain = "";
+
+    // 账号信息
+    private Map<string, SipAccount> _account_map = new Map<string, SipAccount>();
 
     // 是否支持100rel
     private bool _support_100_rel = false;
@@ -30,13 +60,15 @@ protected class SipSystem : EventDispatcher
     private Map<SipCall, bool> _session_weak_map;
     private LoopFunction _loop_session;
 
-    public fun Setup(string self_ip, int self_port, string remote_ip, int remote_port, string remote_domain)
+    public fun Setup(SipRegister sip_register, string self_ip, int self_port, string remote_ip, int remote_port, string remote_domain, bool support_100_rel)
     {
+        this._sip_register = sip_register;
         this._self_ip = self_ip;
         this._self_port = self_port;
         this._remote_ip = remote_ip;
         this._remote_port = remote_port;
         this._remote_domain = remote_domain;
+        this._support_100_rel = support_100_rel;
 
         // 启动SIP服务器
         __CPPAPI_ServerSchedule.CreateUdpServer(this._self_ip, this._self_port);
@@ -76,6 +108,40 @@ protected class SipSystem : EventDispatcher
         }
     }
 
+    // 注册账号
+    public fun ReloadAccount(Map<string, string> account_map_password)
+    {
+        var new_map = new Map<string, SipAccount>();
+        for (var account, password in account_map_password)
+        {
+            var sip_account = new SipAccount();
+            new_map[account] = sip_account;
+            sip_account.account = account;
+            sip_account.password = password;
+
+            var old_account = this._account_map[account];
+            if (old_account != null)
+            {
+                sip_account.register_time = old_account.register_time;
+                sip_account.sip_ip = old_account.sip_ip;
+                sip_account.sip_port = old_account.sip_port;
+            }
+        }
+        this._account_map = new_map;
+    }
+
+    protected fun CheckAccount(string from_number, string remote_ip, int remote_port) : bool
+    {
+        if (this._remote_ip == remote_ip && this._remote_port == remote_port) return true;
+
+        var sip_account = this._account_map[from_number];
+        if (sip_account == null) return false;
+
+        if (Time_GetCurTime() > sip_account.register_time + 3600) return false;
+
+        return remote_ip != sip_account.sip_ip && remote_port != sip_account.sip_port;
+    }
+
     protected fun AddResend(SipCall call)
     {
         this._resend_weak_map[call] = true;
@@ -86,9 +152,15 @@ protected class SipSystem : EventDispatcher
         this._session_weak_map[call] = true;
     }
 
-    protected fun Send(string message)
+    protected fun Send(string message, string sip_ip, int sip_port)
     {
-        __CPPAPI_ServerSchedule.SendUdpMessage(this._self_ip, this._self_port, this._remote_ip, this._remote_port, message);
+        if (sip_ip == null || sip_ip == "" || sip_port == 0 || sip_port == null)
+        {
+            sip_ip = this._remote_ip;
+            sip_port = this._remote_port;
+        }
+
+        __CPPAPI_ServerSchedule.SendUdpMessage(this._self_ip, this._self_port, sip_ip, sip_port, message);
         Log("SEND==>");
         Log(message);
     }
@@ -96,10 +168,14 @@ protected class SipSystem : EventDispatcher
     protected fun ReleaseCall(SipCall call_info)
     {
         Log("Release call_id:"..call_info._call_id);
-        A_RtpSystem.ReleaseRtp(call_info._call_id);
+        A_RtpSystem.ReleaseRtp(this, call_info._call_id);
         this._call_map[call_info._call_id] = null;
         this._session_weak_map[call_info] = null;
         this._resend_weak_map[call_info] = null;
+
+        var event = new SipCallReleaseEvent();
+        event.call_info = call_info;
+        this.DispatchEvent(event);
     }
 
     //==============================================================================================
@@ -186,7 +262,7 @@ protected class SipSystem : EventDispatcher
                 }
             }
             // 处理呼入响铃
-            elseif (call_info._sip_step == SipStep.IN_RINGING)
+            elseif (call_info._sip_step == SipStep.IN_TRYING || call_info._sip_step == SipStep.IN_RINGING)
             {
                 // 如果这个状态超过10分钟，那么就直接移除
                 if (cur_time - call_info._sip_send_time > 60 * 10)
@@ -250,6 +326,8 @@ protected class SipSystem : EventDispatcher
 
     private fun HandleSipInfo(UdpMessageEvent event)
     {
+        if (event.self_ip != this._self_ip || event.self_port != this._self_port) return;
+
         Log("RECEIVE <===", event.remote_ip..":"..event.remote_port);
         Log(event.message);
 
@@ -273,6 +351,12 @@ protected class SipSystem : EventDispatcher
             if (response_list[2] == null) return;
             status = response_list[2];
         }
+        
+        if (method == "REGISTER")
+        {
+            this.HandleRegister(method, status, response_list, content_list, event.remote_ip, event.remote_port);
+            return;
+        }
 
         var cseq_number, cseq_method = SipCall.GetCseqFromUDP(content_list);
         if (cseq_method == "REGISTER")
@@ -284,15 +368,15 @@ protected class SipSystem : EventDispatcher
 
                 var uri = this._remote_domain;
                 if (uri == null || uri == "") uri = this._remote_ip..":"..this._remote_port;
-                var auth = SipCall.GenAuth(nonce, realm, from_number, A_SipRegister.GetPassword(from_number), "REGISTER", uri);
+                var auth = SipCall.GenAuth(nonce, realm, from_number, this._sip_register.GetPassword(from_number), "REGISTER", uri);
 
                 var via_branch = String_Md5(String_GenerateID("via_branch"));
-                this.Send(this.GenRegister(from_number, call_id, via_branch, from_tag, cseq_number + 1, auth));
+                this.Send(this.GenRegister(from_number, call_id, via_branch, from_tag, cseq_number + 1, auth), event.remote_ip, event.remote_port);
             }
             elseif (status == "200")
             {
                 var from_number, from_tag = SipCall.GetFromFromUDP(content_list);
-                A_SipRegister.HandleRegisterSucceed(from_number);
+                this._sip_register.HandleRegisterSucceed(from_number);
             }
             return;
         }
@@ -303,17 +387,24 @@ protected class SipSystem : EventDispatcher
             var call_info = this._call_map[call_id];
             if (call_info == null)
             {
-                call_info = new SipCall();
+                call_info = new SipCall(this);
                 call_info._call_id = call_id;
                 this._call_map[call_id] = call_info;
+
                 // 处理呼入
-                if (!call_info.HandleSipInfoCreateCallInInvite(method, "", response_list, content_list, this._self_ip, this._self_port))
+                var error = call_info.HandleSipInfoCreateCallInInvite(method, "", response_list, content_list
+                                                                     , this._self_ip, this._self_port
+                                                                     , event.remote_ip, event.remote_port);
+                if (error != null)
                 {
-                    call_info.StopCall("HandleSipInfoCreateCallInInvite失败");
+                    call_info.StopCall(error);
                 }
                 else
                 {
-                    // 暂时不处理，等待对接
+                    // 处理新呼入的呼叫
+                    var call_in_event = new SipCallInEvent();
+                    call_in_event.call_info = call_info;
+                    this.DispatchEvent(call_in_event);
                 }
             }
             else
@@ -321,14 +412,14 @@ protected class SipSystem : EventDispatcher
                 call_info.HandleCallSipReInvite(method, "", response_list, content_list);
             }
         }
-            // 处理其他协议
+        // 处理其他协议
         else
         {
             var call_info = this._call_map[call_id];
             if (call_info == null)
             {
                 Warn("can't find call id:"..call_id);
-                this.HandleUnknowCall(method, status, response_list, content_list);
+                this.HandleUnknowCall(method, status, response_list, content_list, event.remote_ip, event.remote_port);
                 return;
             }
 
@@ -339,8 +430,75 @@ protected class SipSystem : EventDispatcher
     }
 
     //==============================================================================================
+    // 处理注册
+    private fun HandleRegister(string method, string status, List<string> response_list, List<string> content_list, string remote_ip, int remote_port)
+    {
+        var via = SipCall.GetKeyValueFromUDP(content_list, "VIA");
+        var from = SipCall.GetKeyValueFromUDP(content_list, "FROM");
+        var to = SipCall.GetKeyValueFromUDP(content_list, "TO");
+        var cseq = SipCall.GetKeyValueFromUDP(content_list, "CSEQ");
+        var call_id = SipCall.GetKeyValueFromUDP(content_list, "CALL-ID");
+        var max_forwards = SipCall.GetKeyValueFromUDP(content_list, "MAX-FORWARDS");
+        var expires = SipCall.GetKeyValueFromUDP(content_list, "EXPIRES");
+        var allow = SipCall.GetKeyValueFromUDP(content_list, "ALLOW");
+
+        if (ALittle.String_Find(to, "tag=") == null)
+        	to = to..";tag="..String_Md5(String_GenerateID("to_tag"));
+
+        // 检查鉴权信息
+        var authorization = SipCall.GetKeyValueFromUDP(content_list, "AUTHORIZATION");
+        if (authorization == null)
+        {
+            var sip_head = "SIP/2.0 401 Unauthorized\r\n";
+            sip_head = sip_head.."Via: "..via.."\r\n";
+            sip_head = sip_head.."From: "..from.."\r\n";
+            sip_head = sip_head.."To: "..to.."\r\n";
+            sip_head = sip_head.."Call-ID: "..call_id.."\r\n";
+            sip_head = sip_head.."CSeq: "..cseq.."\r\n";
+            sip_head = sip_head.."Max-Forwards: "..max_forwards.."\r\n";
+            sip_head = sip_head.."Allow: "..allow.."\r\n";
+            sip_head = sip_head.."WWW-Authenticate: Digest realm=\"ALittle\", nonce=\""..String_Md5(String_GenerateID("nonce")).."\", stale=FALSE, algorithm=MD5\r\n";
+            sip_head = sip_head.."Server: ALittle\r\n";
+            sip_head = sip_head.."Content-Length: 0\r\n\r\n";
+            this.Send(sip_head, remote_ip, remote_port);
+
+            return;
+        }
+
+        // 如果验证成功才返回
+        var nonce, realm, uri, response = SipCall.GetNonceRealmFromUDP(content_list, "AUTHORIZATION");
+        var from_number, from_tag = SipCall.GetFromFromUDP(content_list);
+
+        var sip_account = this._account_map[from_number];
+        if (sip_account != null)
+        {
+            var gen_response = SipCall.GenAuthResponse(nonce, realm, sip_account.account, sip_account.password, "REGISTER", uri);
+            if (gen_response == response)
+            {
+                sip_account.register_time = Time_GetCurTime();
+                sip_account.sip_ip = remote_ip;
+                sip_account.sip_port = remote_port;
+
+                var sip_head = "SIP/2.0 200 OK\r\n";
+                sip_head = sip_head.."Via: "..via.."\r\n";
+                sip_head = sip_head.."From: "..from.."\r\n";
+                sip_head = sip_head.."To: "..to.."\r\n";
+                sip_head = sip_head.."Call-ID: "..call_id.."\r\n";
+                sip_head = sip_head.."CSeq: "..cseq.."\r\n";
+                sip_head = sip_head.."Max-Forwards: "..max_forwards.."\r\n";
+                sip_head = sip_head.."Expires: "..expires.."\r\n";
+                sip_head = sip_head.."Allow: "..allow.."\r\n";
+                sip_head = sip_head.."Server: ALittle\r\n";
+                sip_head = sip_head.."Content-Length: 0\r\n\r\n";
+                this.Send(sip_head, remote_ip, remote_port);
+                return;
+            }
+        }
+    }
+
+    //==============================================================================================
     // 处理未知的呼叫，避免对面频繁发送
-    private fun HandleUnknowCall(string method, string status, List<string> response_list, List<string> content_list)
+    private fun HandleUnknowCall(string method, string status, List<string> response_list, List<string> content_list, string remote_ip, int remote_port)
     {
         if (method == "BYE")
         {
@@ -357,7 +515,7 @@ protected class SipSystem : EventDispatcher
 			sip_head = sip_head.."Call-ID: "..call_id.."\r\n";
 			sip_head = sip_head.."CSeq: "..cseq.."\r\n";
 			sip_head = sip_head.."Content-Length: 0\r\n\r\n";
-            this.Send(sip_head);
+            this.Send(sip_head, remote_ip, remote_port);
         }
     }
 
@@ -370,7 +528,7 @@ protected class SipSystem : EventDispatcher
         var via_branch = String_Md5(String_GenerateID("via_branch"));
         var from_tag = String_Md5(String_GenerateID("from_tag"));
 
-        this.Send(this.GenRegister(account, call_id, via_branch, from_tag, 1, ""));
+        this.Send(this.GenRegister(account, call_id, via_branch, from_tag, 1, ""), this._remote_ip, this._remote_port);
     }
 
     protected fun GenRegister(string account, string call_id, string via_branch, string from_tag, int cseq, string auth) : string
@@ -388,7 +546,7 @@ protected class SipSystem : EventDispatcher
         sip = sip.."To: <sip:"..account.."@"..remote_sip_domain..">\r\n";
         sip = sip.."Call-ID: "..call_id.."\r\n";
         sip = sip.."CSeq: "..cseq.." REGISTER\r\n";
-        sip = sip.."Expires: "..A_SipRegister.GetExpires().."\r\n";
+        sip = sip.."Expires: "..this._sip_register.GetExpires().."\r\n";
         if (auth != null && auth != "") sip = sip.."Authorization: "..auth.."\r\n";
         sip = sip.."Allow: INVITE,ACK,CANCEL,OPTIONS,BYE,REFER,NOTIFY,INFO,MESSAGE,SUBSCRIBE,INFO\r\n";
         sip = sip.."User-Agent: ALittle\r\n";
@@ -400,29 +558,24 @@ protected class SipSystem : EventDispatcher
 
     //==============================================================================================
 
-    // 发起呼叫
-    public fun CallOut(string call_id, string account, string password, string from_number, string to_number, int audio_number, string audio_name) : string, SipCall
+    // 发起对被呼叫方的呼叫
+    public fun CallOut(string call_id, string account, string password, string from_number, string to_number, int audio_number, string audio_name, SipUseRtp use_rtp) : string, SipCall
     {
+        if (this._call_map[call_id] != null) return "call_id已存在", null;
+
         var start_time = Time_GetCurTime();
 
-        var client_ssrc = Math_RandomInt(1, 100000);
-        var server_ssrc = Math_RandomInt(1, 100000);
-        var use_rtp = A_RtpSystem.UseRtp(call_id, client_ssrc, server_ssrc, "", 0);
-        if (use_rtp == null) return "RTP资源不足", null;
-
-        var call_info = new SipCall();
+        var call_info = new SipCall(this);
         this._call_map[call_id] = call_info;
+
+        // 保存rtp信息
+        call_info._use_rtp = use_rtp;
 
         // 保存基础信息
         call_info._account = account;
         call_info._password = password;
         call_info._support_100rel = this._support_100_rel;
         call_info._to_sip_domain = this._remote_domain;
-
-        // 保存rtp信息
-        call_info._client_ssrc = client_ssrc;
-        call_info._server_ssrc = server_ssrc;
-        call_info._use_rtp = use_rtp;
 
         // 保存SIP基本信息
         call_info._via_branch = "z9hG4bK-"..String_Md5(String_GenerateID("via_branch"));
@@ -468,5 +621,3 @@ protected class SipSystem : EventDispatcher
         call_info.CallInOK();
     }
 }
-
-public var A_SipSystem = new SipSystem();

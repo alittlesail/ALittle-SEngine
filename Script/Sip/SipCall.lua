@@ -32,7 +32,7 @@ ALittle.SipStep = {
 
 ALittle.SipCall = Lua.Class(nil, "ALittle.SipCall")
 
-function ALittle.SipCall:Ctor()
+function ALittle.SipCall:Ctor(sip_system)
 	___rawset(self, "_support_100rel", false)
 	___rawset(self, "_out_or_in", false)
 	___rawset(self, "_callout_cseq", 0)
@@ -50,14 +50,13 @@ function ALittle.SipCall:Ctor()
 	___rawset(self, "_bye_count", 0)
 	___rawset(self, "_start_time", 0)
 	___rawset(self, "_anwser_time", 0)
-	___rawset(self, "_client_ssrc", 0)
-	___rawset(self, "_server_ssrc", 0)
+	___rawset(self, "_sip_system", sip_system)
 end
 
 function ALittle.SipCall:DispatchStepChanged()
 	local event = {}
 	event.call_info = self
-	A_SipSystem:DispatchEvent(___all_struct[-1220217441], event)
+	self._sip_system:DispatchEvent(___all_struct[-1220217441], event)
 end
 
 function ALittle.SipCall:HandleSipInfo(method, status, response_list, content_list)
@@ -98,7 +97,7 @@ end
 
 function ALittle.SipCall:TalkBye()
 	self:TalkByeImpl()
-	A_SipSystem:AddResend(self)
+	self._sip_system:AddResend(self)
 end
 
 function ALittle.SipCall:TalkByeImpl()
@@ -113,7 +112,7 @@ function ALittle.SipCall:TalkByeImpl()
 	sip_head = sip_head .. "User-Agent: ALittle\r\n"
 	sip_head = sip_head .. "Max-Forwards: 70\r\n"
 	sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
-	A_SipSystem:Send(sip_head)
+	self._sip_system:Send(sip_head, self._sip_ip, self._sip_port)
 	self._sip_step = 10
 	self._sip_send_time = ALittle.Time_GetCurTime()
 	self._bye_count = self._bye_count + (1)
@@ -134,7 +133,7 @@ function ALittle.SipCall:HandleSipInfoAtTalk(method, status, response_list, cont
 		sip_head = sip_head .. "Call-ID: " .. call_id .. "\r\n"
 		sip_head = sip_head .. "CSeq: " .. cseq .. "\r\n"
 		sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
-		A_SipSystem:Send(sip_head)
+		self._sip_system:Send(sip_head, self._sip_ip, self._sip_port)
 		self._sip_step = 11
 		self:DispatchStepChanged()
 		return
@@ -157,7 +156,7 @@ function ALittle.SipCall:HandleSipInfoAtTalk(method, status, response_list, cont
 		sip_head = sip_head .. "Contact: <sip:" .. self._from_number .. "@" .. self._from_sip_ip .. ":" .. self._from_sip_port .. ">\r\n"
 		sip_head = sip_head .. "Content-Type: application/sdp\r\n"
 		sip_head = sip_head .. "Content-Length: " .. ALittle.String_Len(sip_body) .. "\r\n\r\n"
-		A_SipSystem:Send(sip_head .. sip_body)
+		self._sip_system:Send(sip_head .. sip_body, self._sip_ip, self._sip_port)
 		return
 	end
 	if method == "OPTIONS" then
@@ -178,13 +177,17 @@ function ALittle.SipCall:HandleSipInfoAtTalk(method, status, response_list, cont
 		sip_head = sip_head .. "Contact: <sip:" .. self._from_number .. "@" .. self._from_sip_ip .. ":" .. self._from_sip_port .. ">\r\n"
 		sip_head = sip_head .. "Content-Type: application/sdp\r\n"
 		sip_head = sip_head .. "Content-Length: " .. ALittle.String_Len(sip_body) .. "\r\n\r\n"
-		A_SipSystem:Send(sip_head .. sip_body)
+		self._sip_system:Send(sip_head .. sip_body, self._sip_ip, self._sip_port)
 		return
 	end
 	if method == "ACK" then
 		local audio_name, audio_number, dtmf_rtpmap, dtmf_fmtp, dtmf_number, rtp_ip, rtp_port = self:GetAudioInfoSDP(content_list)
 		if rtp_ip ~= nil and rtp_ip ~= "" then
-			A_RtpSystem:SetRemoteRtp(self._call_id, rtp_ip, rtp_port)
+			if self._out_or_in then
+				A_RtpSystem:SetToRtp(self._sip_system, self._call_id, rtp_ip, rtp_port)
+			else
+				A_RtpSystem:SetFromRtp(self._sip_system, self._call_id, rtp_ip, rtp_port)
+			end
 		end
 		return
 	end
@@ -236,7 +239,7 @@ function ALittle.SipCall:HandleSipInfoAtTalkBying(method, status, response_list,
 		sip_head = sip_head .. "Call-ID: " .. call_id .. "\r\n"
 		sip_head = sip_head .. "CSeq: " .. cseq .. "\r\n"
 		sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
-		A_SipSystem:Send(sip_head)
+		self._sip_system:Send(sip_head, self._sip_ip, self._sip_port)
 		self._sip_step = 11
 		self:DispatchStepChanged()
 		return
@@ -267,10 +270,12 @@ function ALittle.SipCall:SendSession(cur_time)
 	sip_head = sip_head .. "Min-SE: " .. self._session_expires .. "\r\n"
 	sip_head = sip_head .. "Content-Type: application/sdp\r\n"
 	sip_head = sip_head .. "Content-Length: " .. ALittle.String_Len(sip_body) .. "\r\n\r\n"
-	A_SipSystem:Send(sip_head .. sip_body)
+	self._sip_system:Send(sip_head .. sip_body, self._sip_ip, self._sip_port)
 end
 
-function ALittle.SipCall:HandleSipInfoCreateCallInInvite(method, status, response_list, content_list, self_sip_ip, self_sip_port)
+function ALittle.SipCall:HandleSipInfoCreateCallInInvite(method, status, response_list, content_list, self_sip_ip, self_sip_port, remote_sip_ip, remote_sip_port)
+	self._sip_ip = remote_sip_ip
+	self._sip_port = remote_sip_port
 	self._sip_receive_time = ALittle.Time_GetCurTime()
 	self._sip_send_time = self._sip_receive_time
 	if self._start_time == nil or self._start_time == 0 then
@@ -291,9 +296,6 @@ function ALittle.SipCall:HandleSipInfoCreateCallInInvite(method, status, respons
 	local rtp_ip = ""
 	local rtp_port = 0
 	self._audio_name, self._audio_number, self._dtmf_rtpmap, self._dtmf_fmtp, self._dtmf_number, rtp_ip, rtp_port = self:GetAudioInfoSDP(content_list)
-	if rtp_ip ~= nil and rtp_ip ~= "" then
-		A_RtpSystem:SetRemoteRtp(self._call_id, rtp_ip, rtp_port)
-	end
 	self._call_id = ALittle.SipCall.GetKeyValueFromUDP(content_list, "CALL-ID")
 	self._callin_allow = ALittle.SipCall.GetKeyValueFromUDP(content_list, "ALLOW")
 	do
@@ -303,17 +305,33 @@ function ALittle.SipCall:HandleSipInfoCreateCallInInvite(method, status, respons
 		sip_head = sip_head .. self:GenVia(false)
 		sip_head = sip_head .. "Contact: <sip:" .. self._to_number .. "@" .. self._to_sip_ip .. ":" .. self._to_sip_port .. ">\r\n"
 		sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
-		A_SipSystem:Send(sip_head)
+		self._sip_system:Send(sip_head, self._sip_ip, self._sip_port)
 	end
 	self._sip_step = 5
-	self._client_ssrc = ALittle.Math_RandomInt(1, 100000)
-	self._server_ssrc = ALittle.Math_RandomInt(1, 100000)
-	local use_rtp = A_RtpSystem:UseRtp(self._call_id, self._client_ssrc, self._server_ssrc, rtp_ip, rtp_port)
+	self:DispatchStepChanged()
+	if not self._sip_system:CheckAccount(self._from_number, remote_sip_ip, remote_sip_port) then
+		return "账号检查失败"
+	end
+	local from_ssrc = ALittle.Math_RandomInt(1, 100000)
+	local to_ssrc = ALittle.Math_RandomInt(1, 100000)
+	local use_rtp = A_RtpSystem:UseRtp(self._sip_system, self._call_id, self_sip_ip, from_ssrc, to_ssrc)
 	if use_rtp == nil then
-		return false
+		return "Rtp资源不足"
 	end
 	self._use_rtp = use_rtp
-	do
+	if rtp_ip ~= nil and rtp_ip ~= "" then
+		if self._out_or_in then
+			A_RtpSystem:SetToRtp(self._sip_system, self._call_id, rtp_ip, rtp_port)
+		else
+			A_RtpSystem:SetFromRtp(self._sip_system, self._call_id, rtp_ip, rtp_port)
+		end
+	end
+	self._sip_system:AddResend(self)
+	return nil
+end
+
+function ALittle.SipCall:CallInRinging()
+	if self._sip_step == 5 then
 		if self._to_tag == nil or self._to_tag == "" then
 			self._to_tag = ALittle.String_Md5(ALittle.String_GenerateID("to_tag"))
 		end
@@ -327,12 +345,10 @@ function ALittle.SipCall:HandleSipInfoCreateCallInInvite(method, status, respons
 		sip_head = sip_head .. "Contact: <sip:" .. self._to_number .. "@" .. self._to_sip_ip .. ":" .. self._to_sip_port .. ">\r\n"
 		sip_head = sip_head .. "Content-Type: application/sdp\r\n"
 		sip_head = sip_head .. "Content-Length: " .. ALittle.String_Len(sip_body) .. "\r\n\r\n"
-		A_SipSystem:Send(sip_head .. sip_body)
+		self._sip_system:Send(sip_head .. sip_body, self._sip_ip, self._sip_port)
+		self._sip_step = 6
+		self:DispatchStepChanged()
 	end
-	self._sip_step = 6
-	A_SipSystem:AddResend(self)
-	self:DispatchStepChanged()
-	return true
 end
 
 function ALittle.SipCall:HandleSipInfoAtCallInInvite(method, status, response_list, content_list)
@@ -346,7 +362,7 @@ function ALittle.SipCall:HandleSipInfoAtCallInInvite(method, status, response_li
 		sip_head = sip_head .. "Max-Forwards: 70\r\n"
 		sip_head = sip_head .. "Content-Type: application/sdp\r\n"
 		sip_head = sip_head .. "Content-Length: " .. ALittle.String_Len(sip_body) .. "\r\n\r\n"
-		A_SipSystem:Send(sip_head .. sip_body)
+		self._sip_system:Send(sip_head .. sip_body, self._sip_ip, self._sip_port)
 		self._sip_step = 11
 		self:DispatchStepChanged()
 		return
@@ -369,7 +385,7 @@ function ALittle.SipCall:CallInForbiddenImpl()
 	sip_head = sip_head .. self:GenVia(false)
 	sip_head = sip_head .. "Max-Forwards: 70\r\n"
 	sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
-	A_SipSystem:Send(sip_head)
+	self._sip_system:Send(sip_head, self._sip_ip, self._sip_port)
 	self._sip_step = 8
 	self._sip_send_time = ALittle.Time_GetCurTime()
 	self._forbidden_count = self._forbidden_count + (1)
@@ -396,7 +412,7 @@ function ALittle.SipCall:CallInOKImpl()
 	sip_head = sip_head .. "Contact: <sip:" .. self._to_number .. "@" .. self._to_sip_ip .. ":" .. self._to_sip_port .. ">\r\n"
 	sip_head = sip_head .. "Content-Type: application/sdp\r\n"
 	sip_head = sip_head .. "Content-Length: " .. ALittle.String_Len(sip_body) .. "\r\n\r\n"
-	A_SipSystem:Send(sip_head .. sip_body)
+	self._sip_system:Send(sip_head .. sip_body, self._sip_ip, self._sip_port)
 	self._sip_step = 7
 	self._sip_send_time = ALittle.Time_GetCurTime()
 	self._ok_count = self._ok_count + (1)
@@ -428,7 +444,7 @@ function ALittle.SipCall:HandleSipInfoAtCallInForbidden(method, status, response
 		sip_head = sip_head .. "Max-Forwards: 70\r\n"
 		sip_head = sip_head .. "Content-Type: application/sdp\r\n"
 		sip_head = sip_head .. "Content-Length: " .. ALittle.String_Len(sip_body) .. "\r\n\r\n"
-		A_SipSystem:Send(sip_head .. sip_body)
+		self._sip_system:Send(sip_head .. sip_body, self._sip_ip, self._sip_port)
 		self._sip_step = 11
 		self:DispatchStepChanged()
 		return
@@ -446,7 +462,7 @@ function ALittle.SipCall:HandleSipInfoAtCallInForbidden(method, status, response
 		sip_head = sip_head .. "Call-ID: " .. call_id .. "\r\n"
 		sip_head = sip_head .. "CSeq: " .. cseq .. "\r\n"
 		sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
-		A_SipSystem:Send(sip_head)
+		self._sip_system:Send(sip_head, self._sip_ip, self._sip_port)
 		self._sip_step = 11
 		self:DispatchStepChanged()
 	end
@@ -454,7 +470,7 @@ end
 
 function ALittle.SipCall:CallOutInvite(start_time)
 	self:CallOutInviteImpl(start_time)
-	A_SipSystem:AddResend(self)
+	self._sip_system:AddResend(self)
 end
 
 function ALittle.SipCall:CallOutInviteImpl(start_time)
@@ -484,7 +500,7 @@ function ALittle.SipCall:CallOutInviteImpl(start_time)
 	sip_head = sip_head .. "User-Agent: ALittle\r\n"
 	sip_head = sip_head .. "Content-Type: application/sdp\r\n"
 	sip_head = sip_head .. "Content-Length: " .. ALittle.String_Len(sip_body) .. "\r\n\r\n"
-	A_SipSystem:Send(sip_head .. sip_body)
+	self._sip_system:Send(sip_head .. sip_body, self._sip_ip, self._sip_port)
 	self._sip_step = 0
 	self._sip_send_time = ALittle.Time_GetCurTime()
 	self._invite_count = self._invite_count + (1)
@@ -508,7 +524,7 @@ function ALittle.SipCall:CallOutCancel()
 	sip_head = sip_head .. "User-Agent: ALittle\r\n"
 	sip_head = sip_head .. "Max-Forwards: 70\r\n"
 	sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
-	A_SipSystem:Send(sip_head)
+	self._sip_system:Send(sip_head, self._sip_ip, self._sip_port)
 end
 
 function ALittle.SipCall:CheckRequire100rel(content_list)
@@ -529,7 +545,7 @@ function ALittle.SipCall:CheckRequire100rel(content_list)
 	sip_head = sip_head .. "User-Agent: ALittle\r\n"
 	sip_head = sip_head .. "Max-Forwards: 70\r\n"
 	sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
-	A_SipSystem:Send(sip_head)
+	self._sip_system:Send(sip_head, self._sip_ip, self._sip_port)
 end
 
 function ALittle.SipCall:HandleSipInfoAtCallOutInvite(method, status, response_list, content_list)
@@ -557,7 +573,11 @@ function ALittle.SipCall:HandleSipInfoAtCallOutTrying(method, status, response_l
 		end
 		local audio_name, audio_number, dtmf_rtpmap, dtmf_fmtp, dtmf_number, rtp_ip, rtp_port = self:GetAudioInfoSDP(content_list)
 		if rtp_ip ~= nil and rtp_ip ~= "" then
-			A_RtpSystem:SetRemoteRtp(self._call_id, rtp_ip, rtp_port)
+			if self._out_or_in then
+				A_RtpSystem:SetToRtp(self._sip_system, self._call_id, rtp_ip, rtp_port)
+			else
+				A_RtpSystem:SetFromRtp(self._sip_system, self._call_id, rtp_ip, rtp_port)
+			end
 		end
 		local reason = ALittle.SipCall.GetKeyValueFromUDP(content_list, "REASON")
 		if reason ~= nil and reason ~= "" then
@@ -590,7 +610,7 @@ function ALittle.SipCall:HandleSipInfoAtCallOutTrying(method, status, response_l
 			sip_head = sip_head .. "User-Agent: ALittle\r\n"
 			sip_head = sip_head .. "Max-Forwards: 70\r\n"
 			sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
-			A_SipSystem:Send(sip_head)
+			self._sip_system:Send(sip_head, self._sip_ip, self._sip_port)
 			self._callout_auth_nonce, self._callout_auth_realm = ALittle.SipCall.GetNonceRealmFromUDP(content_list, "PROXY-AUTHENTICATE")
 			self._to_tag = ""
 			self._via_branch = "z9hG4bK-" .. ALittle.String_Md5(ALittle.String_GenerateID("via_branch"))
@@ -607,7 +627,7 @@ function ALittle.SipCall:HandleSipInfoAtCallOutTrying(method, status, response_l
 			sip_head = sip_head .. "Call-ID: " .. call_id .. "\r\n"
 			sip_head = sip_head .. "CSeq: " .. cseq .. " ACK\r\n"
 			sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
-			A_SipSystem:Send(sip_head)
+			self._sip_system:Send(sip_head, self._sip_ip, self._sip_port)
 		end
 		return
 	end
@@ -635,7 +655,7 @@ function ALittle.SipCall:HandleSipInfoAtCallOutRinging(method, status, response_
 		sip_head = sip_head .. "User-Agent: ALittle\r\n"
 		sip_head = sip_head .. "Max-Forwards: 70\r\n"
 		sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
-		A_SipSystem:Send(sip_head)
+		self._sip_system:Send(sip_head, self._sip_ip, self._sip_port)
 		local reason = ALittle.SipCall.GetKeyValueFromUDP(content_list, "REASON")
 		if reason == nil or reason == "" then
 			reason = status .. "-FAILED"
@@ -658,7 +678,11 @@ function ALittle.SipCall:HandleSipInfoAtCallOutRinging(method, status, response_
 		end
 		local audio_name, audio_number, dtmf_rtpmap, dtmf_fmtp, dtmf_number, rtp_ip, rtp_port = self:GetAudioInfoSDP(content_list)
 		if rtp_ip ~= nil and rtp_ip ~= "" then
-			A_RtpSystem:SetRemoteRtp(self._call_id, rtp_ip, rtp_port)
+			if self._out_or_in then
+				A_RtpSystem:SetToRtp(self._sip_system, self._call_id, rtp_ip, rtp_port)
+			else
+				A_RtpSystem:SetFromRtp(self._sip_system, self._call_id, rtp_ip, rtp_port)
+			end
 		end
 		local reason = ALittle.SipCall.GetKeyValueFromUDP(content_list, "REASON")
 		if reason ~= nil and reason ~= "" then
@@ -688,7 +712,7 @@ function ALittle.SipCall:HandleSipInfoAtCallOutRinging(method, status, response_
 		sip_head = sip_head .. "User-Agent: ALittle\r\n"
 		sip_head = sip_head .. "Max-Forwards: 70\r\n"
 		sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
-		A_SipSystem:Send(sip_head)
+		self._sip_system:Send(sip_head, self._sip_ip, self._sip_port)
 		return
 	end
 end
@@ -713,7 +737,7 @@ function ALittle.SipCall:HandleSipInfoAtCallOutCanceling(method, status, respons
 			sip_head = sip_head .. "User-Agent: ALittle\r\n"
 			sip_head = sip_head .. "Max-Forwards: 70\r\n"
 			sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
-			A_SipSystem:Send(sip_head)
+			self._sip_system:Send(sip_head, self._sip_ip, self._sip_port)
 			local reason = ALittle.SipCall.GetKeyValueFromUDP(content_list, "REASON")
 			if reason == nil or reason == "" then
 				reason = status .. "-CANCELING-FAILED"
@@ -751,7 +775,11 @@ function ALittle.SipCall:HandleResponseOKForInvite(content_list)
 	end
 	local audio_name, audio_number, dtmf_rtpmap, dtmf_fmtp, dtmf_number, rtp_ip, rtp_port = self:GetAudioInfoSDP(content_list)
 	if rtp_ip ~= nil and rtp_ip ~= "" then
-		A_RtpSystem:SetRemoteRtp(self._call_id, rtp_ip, rtp_port)
+		if self._out_or_in then
+			A_RtpSystem:SetToRtp(self._sip_system, self._call_id, rtp_ip, rtp_port)
+		else
+			A_RtpSystem:SetFromRtp(self._sip_system, self._call_id, rtp_ip, rtp_port)
+		end
 	end
 	if self._anwser_time == nil or self._anwser_time == 0 then
 		self._anwser_time = ALittle.Time_GetCurTime()
@@ -776,14 +804,14 @@ function ALittle.SipCall:HandleResponseOKForInvite(content_list)
 			self._session_expires = ALittle.Math_ToIntOrZero(session_expires_list[1])
 			if self._session_expires > 1 and session_expires_list[2] == "refresher=uac" then
 				self._session_expires_last_time = 0
-				A_SipSystem:AddSession(self)
+				self._sip_system:AddSession(self)
 			end
 		end
 	end
 	sip_head = sip_head .. "User-Agent: ALittle\r\n"
 	sip_head = sip_head .. "Max-Forwards: 70\r\n"
 	sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
-	A_SipSystem:Send(sip_head)
+	self._sip_system:Send(sip_head, self._sip_ip, self._sip_port)
 	local reason = ALittle.SipCall.GetKeyValueFromUDP(content_list, "REASON")
 	if reason ~= nil and reason ~= "" then
 		self._stop_reason = reason
@@ -815,12 +843,16 @@ function ALittle.SipCall:HandleCallSipUpdate(method, status, response_list, cont
 	local sip_body = ""
 	local audio_name, audio_number, dtmf_rtpmap, dtmf_fmtp, dtmf_number, rtp_ip, rtp_port = self:GetAudioInfoSDP(content_list)
 	if rtp_ip ~= nil and rtp_ip ~= "" then
-		A_RtpSystem:SetRemoteRtp(self._call_id, rtp_ip, rtp_port)
+		if self._out_or_in then
+			A_RtpSystem:SetToRtp(self._sip_system, self._call_id, rtp_ip, rtp_port)
+		else
+			A_RtpSystem:SetFromRtp(self._sip_system, self._call_id, rtp_ip, rtp_port)
+		end
 		sip_body = self:GenSDP()
 		sip_head = sip_head .. "Content-Type: application/sdp\r\n"
 	end
 	sip_head = sip_head .. "Content-Length: " .. ALittle.String_Len(sip_body) .. "\r\n\r\n"
-	A_SipSystem:Send(sip_head .. sip_body)
+	self._sip_system:Send(sip_head .. sip_body, self._sip_ip, self._sip_port)
 end
 
 function ALittle.SipCall:HandleCallSipReInvite(method, status, response_list, content_list)
@@ -849,12 +881,16 @@ function ALittle.SipCall:HandleCallSipReInvite(method, status, response_list, co
 	local sip_body = ""
 	local audio_name, audio_number, dtmf_rtpmap, dtmf_fmtp, dtmf_number, rtp_ip, rtp_port = self:GetAudioInfoSDP(content_list)
 	if rtp_ip ~= nil and rtp_ip ~= "" then
-		A_RtpSystem:SetRemoteRtp(self._call_id, rtp_ip, rtp_port)
+		if self._out_or_in then
+			A_RtpSystem:SetToRtp(self._sip_system, self._call_id, rtp_ip, rtp_port)
+		else
+			A_RtpSystem:SetFromRtp(self._sip_system, self._call_id, rtp_ip, rtp_port)
+		end
 	end
 	sip_body = self:GenSDP()
 	sip_head = sip_head .. "Content-Type: application/sdp\r\n"
 	sip_head = sip_head .. "Content-Length: " .. ALittle.String_Len(sip_body) .. "\r\n\r\n"
-	A_SipSystem:Send(sip_head .. sip_body)
+	self._sip_system:Send(sip_head .. sip_body, self._sip_ip, self._sip_port)
 end
 
 function ALittle.SipCall:GenProxyAuth(method, use_to_number)
@@ -874,10 +910,15 @@ function ALittle.SipCall:GenProxyAuth(method, use_to_number)
 	return auth
 end
 
-function ALittle.SipCall.GenAuth(nonce, realm, account, password, method, uri)
+function ALittle.SipCall.GenAuthResponse(nonce, realm, account, password, method, uri)
 	local response_1 = ALittle.String_Md5(account .. ":" .. realm .. ":" .. password)
 	local response_2 = ALittle.String_Md5(method .. ":" .. uri)
 	local response = ALittle.String_Md5(response_1 .. ":" .. nonce .. ":" .. response_2)
+	return response
+end
+
+function ALittle.SipCall.GenAuth(nonce, realm, account, password, method, uri)
+	local response = ALittle.SipCall.GenAuthResponse(nonce, realm, account, password, method, uri)
 	return "Digest username=\"" .. account .. "\",realm=\"" .. realm .. "\",nonce=\"" .. nonce .. "\",uri=\"" .. uri .. "\",response=\"" .. response .. "\",algorithm=MD5"
 end
 
@@ -951,12 +992,21 @@ function ALittle.SipCall:GenVia(swap)
 end
 
 function ALittle.SipCall:GenSDP()
+	if self._sdp_session == nil then
+		self._sdp_session = ALittle.Time_GetCurTime() .. ""
+	end
+	local rtp_ip = self._use_rtp.from_rtp_ip
+	local rtp_port = self._use_rtp.from_rtp_port
+	if self._out_or_in then
+		rtp_ip = self._use_rtp.to_rtp_ip
+		rtp_port = self._use_rtp.to_rtp_port
+	end
 	local sdp = "v=0\r\n"
-	sdp = sdp .. "o=- 4 2 IN IP4 " .. self._use_rtp.self_rtp_ip .. "\r\n"
+	sdp = sdp .. "o=- " .. self._sdp_session .. " " .. self._sdp_session .. " IN IP4 " .. rtp_ip .. "\r\n"
 	sdp = sdp .. "s=ALittle\r\n"
-	sdp = sdp .. "c=IN IP4 " .. self._use_rtp.self_rtp_ip .. "\r\n"
+	sdp = sdp .. "c=IN IP4 " .. rtp_ip .. "\r\n"
 	sdp = sdp .. "t=0 0\r\n"
-	sdp = sdp .. "m=audio " .. self._use_rtp.self_rtp_port .. " RTP/AVP " .. self._audio_number .. " " .. self._dtmf_number .. "\r\n"
+	sdp = sdp .. "m=audio " .. rtp_port .. " RTP/AVP " .. self._audio_number .. " " .. self._dtmf_number .. "\r\n"
 	sdp = sdp .. "a=rtpmap:" .. self._audio_number .. " " .. self._audio_name .. "/8000\r\n"
 	sdp = sdp .. "a=fmtp:" .. self._audio_number .. " annexb=no\r\n"
 	sdp = sdp .. self._dtmf_rtpmap .. "\r\n"
@@ -989,18 +1039,18 @@ end
 function ALittle.SipCall.GetNonceRealmFromUDP(content_list, upper_key)
 	local value = ALittle.SipCall.GetKeyValueFromUDP(content_list, upper_key)
 	if value == nil then
-		return nil, nil
+		return nil, nil, nil, nil
 	end
 	local nonce = ""
 	do
 		local pos_1 = ALittle.String_Find(value, "nonce=\"")
 		if pos_1 == nil then
-			return nil, nil
+			return nil, nil, nil, nil
 		end
 		pos_1 = pos_1 + (ALittle.String_Len("nonce=\""))
 		local pos_2 = ALittle.String_Find(value, "\"", pos_1)
 		if pos_2 == nil then
-			return nil, nil
+			return nil, nil, nil, nil
 		end
 		nonce = ALittle.String_Sub(value, pos_1, pos_2 - 1)
 	end
@@ -1008,16 +1058,38 @@ function ALittle.SipCall.GetNonceRealmFromUDP(content_list, upper_key)
 	do
 		local pos_1 = ALittle.String_Find(value, "realm=\"")
 		if pos_1 == nil then
-			return nil, nil
+			return nil, nil, nil, nil
 		end
 		pos_1 = pos_1 + (ALittle.String_Len("realm=\""))
 		local pos_2 = ALittle.String_Find(value, "\"", pos_1)
 		if pos_2 == nil then
-			return nil, nil
+			return nil, nil, nil, nil
 		end
 		realm = ALittle.String_Sub(value, pos_1, pos_2 - 1)
 	end
-	return nonce, realm
+	local uri = ""
+	do
+		local pos_1 = ALittle.String_Find(value, "uri=\"")
+		if pos_1 ~= nil then
+			pos_1 = pos_1 + (ALittle.String_Len("uri=\""))
+			local pos_2 = ALittle.String_Find(value, "\"", pos_1)
+			if pos_2 ~= nil then
+				uri = ALittle.String_Sub(value, pos_1, pos_2 - 1)
+			end
+		end
+	end
+	local response = ""
+	do
+		local pos_1 = ALittle.String_Find(value, "response=\"")
+		if pos_1 ~= nil then
+			pos_1 = pos_1 + (ALittle.String_Len("response=\""))
+			local pos_2 = ALittle.String_Find(value, "\"", pos_1)
+			if pos_2 ~= nil then
+				response = ALittle.String_Sub(value, pos_1, pos_2 - 1)
+			end
+		end
+	end
+	return nonce, realm, uri, response
 end
 
 function ALittle.SipCall.GetCseqFromUDP(content_list)
