@@ -313,7 +313,7 @@ protected class RtpSystem
     	info.call_id_map_port = new Map<SipSystem, Map<string, int>>();	// CALLID映射表
     	info.idle_list = new List<int>();		// 当前空闲列表
 
-        Log("receive new rtp:"..info.min_port..","..info.max_port);
+        Log("SipServer receive new rtp:"..info.min_port..","..info.max_port);
     }
 }
 

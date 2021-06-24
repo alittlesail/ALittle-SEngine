@@ -224,7 +224,7 @@ function ALittle.RtpSystem:HandleAnyConnect(event)
 	info.use_count = 0
 	info.call_id_map_port = {}
 	info.idle_list = {}
-	ALittle.Log("receive new rtp:" .. info.min_port .. "," .. info.max_port)
+	ALittle.Log("SipServer receive new rtp:" .. info.min_port .. "," .. info.max_port)
 end
 
 _G.A_RtpSystem = ALittle.RtpSystem()
