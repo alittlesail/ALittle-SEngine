@@ -10,20 +10,20 @@ local ___all_struct = ALittle.GetAllStruct()
 
 ALittle.RegStruct(1995174805, "ALittle.SIP2RTP_NUse", {
 name = "ALittle.SIP2RTP_NUse", ns_name = "ALittle", rl_name = "SIP2RTP_NUse", hash_code = 1995174805,
-name_list = {"call_id","from_rtp_ip","from_rtp_port","from_ssrc","to_rtp_ip","to_rtp_port","to_ssrc"},
-type_list = {"string","string","int","int","string","int","int"},
+name_list = {"first_port","call_id","from_rtp_ip","from_rtp_port","from_ssrc","to_rtp_ip","to_rtp_port","to_ssrc"},
+type_list = {"int","string","string","int","int","string","int","int"},
 option_map = {}
 })
 ALittle.RegStruct(-1961403292, "ALittle.SipUseRtp", {
 name = "ALittle.SipUseRtp", ns_name = "ALittle", rl_name = "SipUseRtp", hash_code = -1961403292,
-name_list = {"from_rtp_ip","from_rtp_port","to_rtp_ip","to_rtp_port","from_ssrc","to_ssrc","session"},
-type_list = {"string","int","string","int","int","int","ALittle.MsgSessionTemplate<ALittle.MsgSessionNative,carp.CarpMessageWriteFactory>"},
+name_list = {"from_rtp_ip","from_rtp_port","to_rtp_ip","to_rtp_port","from_ssrc","to_ssrc","call_id","sip_system","session"},
+type_list = {"string","int","string","int","int","int","string","ALittle.SipSystem","ALittle.MsgSessionTemplate<ALittle.MsgSessionNative,carp.CarpMessageWriteFactory>"},
 option_map = {}
 })
 ALittle.RegStruct(1861512184, "ALittle.SIP2RTP_NRelease", {
 name = "ALittle.SIP2RTP_NRelease", ns_name = "ALittle", rl_name = "SIP2RTP_NRelease", hash_code = 1861512184,
-name_list = {"call_id"},
-type_list = {"string"},
+name_list = {"first_port"},
+type_list = {"int"},
 option_map = {}
 })
 ALittle.RegStruct(1715346212, "ALittle.Event", {
@@ -40,14 +40,14 @@ option_map = {}
 })
 ALittle.RegStruct(-936152749, "ALittle.SIP2RTP_NSetToRtp", {
 name = "ALittle.SIP2RTP_NSetToRtp", ns_name = "ALittle", rl_name = "SIP2RTP_NSetToRtp", hash_code = -936152749,
-name_list = {"call_id","rtp_ip","rtp_port"},
-type_list = {"string","string","int"},
+name_list = {"first_port","rtp_ip","rtp_port"},
+type_list = {"int","string","int"},
 option_map = {}
 })
 ALittle.RegStruct(-295216066, "ALittle.SIP2RTP_NSetFromRtp", {
 name = "ALittle.SIP2RTP_NSetFromRtp", ns_name = "ALittle", rl_name = "SIP2RTP_NSetFromRtp", hash_code = -295216066,
-name_list = {"call_id","rtp_ip","rtp_port"},
-type_list = {"string","string","int"},
+name_list = {"first_port","rtp_ip","rtp_port"},
+type_list = {"int","string","int"},
 option_map = {}
 })
 
@@ -77,7 +77,7 @@ function ALittle.RtpSystem:UseRtp(sip_system, call_id, from_ip, from_ssrc, to_ss
 	local target_info = nil
 	local target_route_num = nil
 	for route_num, info in ___pairs(self._module_map_info) do
-		if info.total_count > 0 and info.total_count - info.use_count >= 4 then
+		if info.total_count > 0 and info.total_count - info.use_count >= self._group_port_count then
 			local rate = info.use_count / info.total_count
 			if rate < min then
 				target_info = info
@@ -106,6 +106,7 @@ function ALittle.RtpSystem:UseRtp(sip_system, call_id, from_ip, from_ssrc, to_ss
 	call_id_map_port[call_id] = first_port
 	local msg = {}
 	msg.call_id = call_id
+	msg.first_port = first_port
 	if self._self_ip == from_ip then
 		msg.from_rtp_ip = self._self_ip
 		msg.to_rtp_ip = self._proxy_ip
@@ -119,6 +120,8 @@ function ALittle.RtpSystem:UseRtp(sip_system, call_id, from_ip, from_ssrc, to_ss
 	msg.to_ssrc = to_ssrc
 	target_info.session:SendMsg(___all_struct[1995174805], msg)
 	local result = {}
+	result.call_id = call_id
+	result.sip_system = sip_system
 	result.session = target_info.session
 	result.from_rtp_ip = msg.from_rtp_ip
 	result.from_rtp_port = msg.from_rtp_port
@@ -142,7 +145,7 @@ function ALittle.RtpSystem:ReleaseRtp(sip_system, call_id)
 	info.use_count = info.use_count - (self._group_port_count)
 	ALittle.List_Push(info.idle_list, first_port)
 	local msg = {}
-	msg.call_id = call_id
+	msg.first_port = first_port
 	info.session:SendMsg(___all_struct[1861512184], msg)
 end
 
@@ -152,7 +155,7 @@ function ALittle.RtpSystem:SetFromRtp(sip_system, call_id, rtp_ip, rtp_port)
 		return
 	end
 	local msg = {}
-	msg.call_id = call_id
+	msg.first_port = first_port
 	msg.rtp_ip = rtp_ip
 	msg.rtp_port = rtp_port
 	info.session:SendMsg(___all_struct[-295216066], msg)
@@ -164,7 +167,7 @@ function ALittle.RtpSystem:SetToRtp(sip_system, call_id, rtp_ip, rtp_port)
 		return
 	end
 	local msg = {}
-	msg.call_id = call_id
+	msg.first_port = first_port
 	msg.rtp_ip = rtp_ip
 	msg.rtp_port = rtp_port
 	info.session:SendMsg(___all_struct[-936152749], msg)

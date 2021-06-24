@@ -283,9 +283,9 @@ public class SipCall
             if (rtp_ip != null && rtp_ip != "")
             {
                 if (this._out_or_in)
-                    A_RtpSystem.SetToRtp(this._sip_system, this._call_id, rtp_ip, rtp_port);
+                    A_RtpSystem.SetToRtp(this._use_rtp.sip_system, this._use_rtp.call_id, rtp_ip, rtp_port);
                 else
-                    A_RtpSystem.SetFromRtp(this._sip_system, this._call_id, rtp_ip, rtp_port);
+                    A_RtpSystem.SetFromRtp(this._use_rtp.sip_system, this._use_rtp.call_id, rtp_ip, rtp_port);
             }
 
             return;
@@ -466,9 +466,9 @@ public class SipCall
         if (rtp_ip != null && rtp_ip != "")
         {
             if (this._out_or_in)
-            	A_RtpSystem.SetToRtp(this._sip_system, this._call_id, rtp_ip, rtp_port);
+            	A_RtpSystem.SetToRtp(this._use_rtp.sip_system, this._use_rtp.call_id, rtp_ip, rtp_port);
             else
-                A_RtpSystem.SetFromRtp(this._sip_system, this._call_id, rtp_ip, rtp_port);
+                A_RtpSystem.SetFromRtp(this._use_rtp.sip_system, this._use_rtp.call_id, rtp_ip, rtp_port);
         }
 
         // 添加到resend
@@ -754,9 +754,9 @@ public class SipCall
             if (rtp_ip != null && rtp_ip != "")
             {
                 if (this._out_or_in)
-                    A_RtpSystem.SetToRtp(this._sip_system, this._call_id, rtp_ip, rtp_port);
+                    A_RtpSystem.SetToRtp(this._use_rtp.sip_system, this._use_rtp.call_id, rtp_ip, rtp_port);
                 else
-                    A_RtpSystem.SetFromRtp(this._sip_system, this._call_id, rtp_ip, rtp_port);
+                    A_RtpSystem.SetFromRtp(this._use_rtp.sip_system, this._use_rtp.call_id, rtp_ip, rtp_port);
             }
 
             var reason = SipCall.GetKeyValueFromUDP(content_list, "REASON");
@@ -870,9 +870,9 @@ public class SipCall
             if (rtp_ip != null && rtp_ip != "")
             {
                 if (this._out_or_in)
-                    A_RtpSystem.SetToRtp(this._sip_system, this._call_id, rtp_ip, rtp_port);
+                    A_RtpSystem.SetToRtp(this._use_rtp.sip_system, this._use_rtp.call_id, rtp_ip, rtp_port);
                 else
-                    A_RtpSystem.SetFromRtp(this._sip_system, this._call_id, rtp_ip, rtp_port);
+                    A_RtpSystem.SetFromRtp(this._use_rtp.sip_system, this._use_rtp.call_id, rtp_ip, rtp_port);
             }
 
             var reason = SipCall.GetKeyValueFromUDP(content_list, "REASON");
@@ -982,9 +982,9 @@ public class SipCall
         if (rtp_ip != null && rtp_ip != "")
         {
             if (this._out_or_in)
-            	A_RtpSystem.SetToRtp(this._sip_system, this._call_id, rtp_ip, rtp_port);
+            	A_RtpSystem.SetToRtp(this._use_rtp.sip_system, this._use_rtp.call_id, rtp_ip, rtp_port);
             else
-                A_RtpSystem.SetFromRtp(this._sip_system, this._call_id, rtp_ip, rtp_port);
+                A_RtpSystem.SetFromRtp(this._use_rtp.sip_system, this._use_rtp.call_id, rtp_ip, rtp_port);
         }
 
         if (this._anwser_time == null || this._anwser_time == 0) this._anwser_time = Time_GetCurTime();
@@ -1060,9 +1060,9 @@ public class SipCall
         if (rtp_ip != null && rtp_ip != "")
         {
             if (this._out_or_in)
-                A_RtpSystem.SetToRtp(this._sip_system, this._call_id, rtp_ip, rtp_port);
+                A_RtpSystem.SetToRtp(this._use_rtp.sip_system, this._use_rtp.call_id, rtp_ip, rtp_port);
             else
-                A_RtpSystem.SetFromRtp(this._sip_system, this._call_id, rtp_ip, rtp_port);
+                A_RtpSystem.SetFromRtp(this._use_rtp.sip_system, this._use_rtp.call_id, rtp_ip, rtp_port);
 
             sip_body = this.GenSDP();
             sip_head = sip_head.."Content-Type: application/sdp\r\n";
@@ -1106,9 +1106,9 @@ public class SipCall
         if (rtp_ip != null && rtp_ip != "")
         {
             if (this._out_or_in)
-            	A_RtpSystem.SetToRtp(this._sip_system, this._call_id, rtp_ip, rtp_port);
+            	A_RtpSystem.SetToRtp(this._use_rtp.sip_system, this._use_rtp.call_id, rtp_ip, rtp_port);
             else
-                A_RtpSystem.SetFromRtp(this._sip_system, this._call_id, rtp_ip, rtp_port);
+                A_RtpSystem.SetFromRtp(this._use_rtp.sip_system, this._use_rtp.call_id, rtp_ip, rtp_port);
         }
 
         sip_body = this.GenSDP();

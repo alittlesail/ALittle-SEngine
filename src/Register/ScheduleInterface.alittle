@@ -34,27 +34,28 @@ public class __CPPAPIServerSchedule
     public fun ClientSend(int client_id, ALittle.IMessageWriteFactory factory) {}
 
     // 释放rtp
-    public fun ReleaseRtp(string call_id) {}
+    public fun ReleaseRtp(int first_port) {}
     // 释放所有rtp
     public fun ReleaseAllRtp() {}
 
     // 设置呼叫方的IP和端口
-    public fun SetFromRtp(string call_id, string rtp_ip, int rtp_port) {}
+    public fun SetFromRtp(int first_port, string rtp_ip, int rtp_port) {}
 
     // 设置被呼叫方的IP和端口
-    public fun SetToRtp(string call_id, string rtp_ip, int rtp_port) {}
+    public fun SetToRtp(int first_port, string rtp_ip, int rtp_port) {}
 
     // 清理空闲rtp，可以定时调用
     // idle_delta_time 表示超过多少秒的空闲清理掉
     public fun ClearIdleRtp(int idle_delta_time) {}
 
     // 开始使用rtp
+    // first_port 是作为复用RTP的主键
     // call_id SIP协议中的CALL-ID
 	// from_rtp_ip 表示要使用的ip列表，用于和客户端互发媒体包。
 	// to_rtp_ip 表示要使用的ip，用于和线路方互发RTP包
     // from_ssrc 和呼叫方通话的标识
     // to_ssrc 和被呼叫方通话的标识
-    public fun UseRtp(string call_id
+    public fun UseRtp(int first_port, string call_id
                      , string from_rtp_ip, int from_rtp_port, int from_ssrc
                      , string to_rtp_ip, int to_rtp_port, int to_ssrc) {}
 

@@ -32,18 +32,23 @@ protected struct SipUseRtp
     int from_ssrc;
     int to_ssrc;
 
+    // RTP归属的SIP系统和call_id
+    string call_id;
+    SipSystem sip_system;
+
     MsgSession session;	// Rtp连接对象
 }
 
 // SIP通知RTP，释放端口
 public struct SIP2RTP_NRelease
 {
-    string call_id;
+    int first_port;
 }
 
 // SIP通知RTP，使用端口
 public struct SIP2RTP_NUse
 {
+    int first_port;
     string call_id;
 
     // 和呼叫方的媒体通讯标识
@@ -59,14 +64,14 @@ public struct SIP2RTP_NUse
 
 public struct SIP2RTP_NSetFromRtp
 {
-    string call_id;
+    int first_port;
     string rtp_ip;
     int rtp_port;
 }
 
 public struct SIP2RTP_NSetToRtp
 {
-    string call_id;
+    int first_port;
     string rtp_ip;
     int rtp_port;
 }
@@ -111,7 +116,7 @@ protected class RtpSystem
         var target_route_num:int = null;
         for (var route_num, info in this._module_map_info)
         {
-            if (info.total_count > 0 && info.total_count - info.use_count >= 4)
+            if (info.total_count > 0 && info.total_count - info.use_count >= this._group_port_count)
             {
             	var rate = info.use_count / info.total_count;
                 if (rate < min)
@@ -154,6 +159,7 @@ protected class RtpSystem
         // 向Rtp服务器发送通知
         var msg = new SIP2RTP_NUse();
         msg.call_id = call_id;
+        msg.first_port = first_port;
 
         // 如果来源ip是线路方，那么就是从线路方呼叫到客户端
         if (this._self_ip == from_ip)
@@ -177,6 +183,8 @@ protected class RtpSystem
 
         // 设置返回值
 		var result = new SipUseRtp();
+        result.call_id = call_id;
+        result.sip_system = sip_system;
         result.session = target_info.session;
         
         result.from_rtp_ip = msg.from_rtp_ip;
@@ -205,7 +213,7 @@ protected class RtpSystem
         List_Push(info.idle_list, first_port);
     
         var msg = new SIP2RTP_NRelease();
-        msg.call_id = call_id;
+        msg.first_port = first_port;
         info.session.SendMsg(msg);
     }
 
@@ -214,9 +222,8 @@ protected class RtpSystem
     {
         var info, first_port = this.GetRtpInfoByCallId(sip_system, call_id);
         if (info == null) return;
-
         var msg = new SIP2RTP_NSetFromRtp();
-        msg.call_id = call_id;
+        msg.first_port = first_port;
         msg.rtp_ip = rtp_ip;
         msg.rtp_port = rtp_port;
         info.session.SendMsg(msg);
@@ -227,9 +234,8 @@ protected class RtpSystem
     {
         var info, first_port = this.GetRtpInfoByCallId(sip_system, call_id);
         if (info == null) return;
-
         var msg = new SIP2RTP_NSetToRtp();
-        msg.call_id = call_id;
+        msg.first_port = first_port;
         msg.rtp_ip = rtp_ip;
         msg.rtp_port = rtp_port;
         info.session.SendMsg(msg);

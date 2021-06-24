@@ -185,9 +185,9 @@ function ALittle.SipCall:HandleSipInfoAtTalk(method, status, response_list, cont
 		local audio_name, audio_number, dtmf_rtpmap, dtmf_fmtp, dtmf_number, rtp_ip, rtp_port = self:GetAudioInfoSDP(content_list)
 		if rtp_ip ~= nil and rtp_ip ~= "" then
 			if self._out_or_in then
-				A_RtpSystem:SetToRtp(self._sip_system, self._call_id, rtp_ip, rtp_port)
+				A_RtpSystem:SetToRtp(self._use_rtp.sip_system, self._use_rtp.call_id, rtp_ip, rtp_port)
 			else
-				A_RtpSystem:SetFromRtp(self._sip_system, self._call_id, rtp_ip, rtp_port)
+				A_RtpSystem:SetFromRtp(self._use_rtp.sip_system, self._use_rtp.call_id, rtp_ip, rtp_port)
 			end
 		end
 		return
@@ -322,9 +322,9 @@ function ALittle.SipCall:HandleSipInfoCreateCallInInvite(method, status, respons
 	self._use_rtp = use_rtp
 	if rtp_ip ~= nil and rtp_ip ~= "" then
 		if self._out_or_in then
-			A_RtpSystem:SetToRtp(self._sip_system, self._call_id, rtp_ip, rtp_port)
+			A_RtpSystem:SetToRtp(self._use_rtp.sip_system, self._use_rtp.call_id, rtp_ip, rtp_port)
 		else
-			A_RtpSystem:SetFromRtp(self._sip_system, self._call_id, rtp_ip, rtp_port)
+			A_RtpSystem:SetFromRtp(self._use_rtp.sip_system, self._use_rtp.call_id, rtp_ip, rtp_port)
 		end
 	end
 	self._sip_system:AddResend(self)
@@ -575,9 +575,9 @@ function ALittle.SipCall:HandleSipInfoAtCallOutTrying(method, status, response_l
 		local audio_name, audio_number, dtmf_rtpmap, dtmf_fmtp, dtmf_number, rtp_ip, rtp_port = self:GetAudioInfoSDP(content_list)
 		if rtp_ip ~= nil and rtp_ip ~= "" then
 			if self._out_or_in then
-				A_RtpSystem:SetToRtp(self._sip_system, self._call_id, rtp_ip, rtp_port)
+				A_RtpSystem:SetToRtp(self._use_rtp.sip_system, self._use_rtp.call_id, rtp_ip, rtp_port)
 			else
-				A_RtpSystem:SetFromRtp(self._sip_system, self._call_id, rtp_ip, rtp_port)
+				A_RtpSystem:SetFromRtp(self._use_rtp.sip_system, self._use_rtp.call_id, rtp_ip, rtp_port)
 			end
 		end
 		local reason = ALittle.SipCall.GetKeyValueFromUDP(content_list, "REASON")
@@ -680,9 +680,9 @@ function ALittle.SipCall:HandleSipInfoAtCallOutRinging(method, status, response_
 		local audio_name, audio_number, dtmf_rtpmap, dtmf_fmtp, dtmf_number, rtp_ip, rtp_port = self:GetAudioInfoSDP(content_list)
 		if rtp_ip ~= nil and rtp_ip ~= "" then
 			if self._out_or_in then
-				A_RtpSystem:SetToRtp(self._sip_system, self._call_id, rtp_ip, rtp_port)
+				A_RtpSystem:SetToRtp(self._use_rtp.sip_system, self._use_rtp.call_id, rtp_ip, rtp_port)
 			else
-				A_RtpSystem:SetFromRtp(self._sip_system, self._call_id, rtp_ip, rtp_port)
+				A_RtpSystem:SetFromRtp(self._use_rtp.sip_system, self._use_rtp.call_id, rtp_ip, rtp_port)
 			end
 		end
 		local reason = ALittle.SipCall.GetKeyValueFromUDP(content_list, "REASON")
@@ -777,9 +777,9 @@ function ALittle.SipCall:HandleResponseOKForInvite(content_list)
 	local audio_name, audio_number, dtmf_rtpmap, dtmf_fmtp, dtmf_number, rtp_ip, rtp_port = self:GetAudioInfoSDP(content_list)
 	if rtp_ip ~= nil and rtp_ip ~= "" then
 		if self._out_or_in then
-			A_RtpSystem:SetToRtp(self._sip_system, self._call_id, rtp_ip, rtp_port)
+			A_RtpSystem:SetToRtp(self._use_rtp.sip_system, self._use_rtp.call_id, rtp_ip, rtp_port)
 		else
-			A_RtpSystem:SetFromRtp(self._sip_system, self._call_id, rtp_ip, rtp_port)
+			A_RtpSystem:SetFromRtp(self._use_rtp.sip_system, self._use_rtp.call_id, rtp_ip, rtp_port)
 		end
 	end
 	if self._anwser_time == nil or self._anwser_time == 0 then
@@ -845,9 +845,9 @@ function ALittle.SipCall:HandleCallSipUpdate(method, status, response_list, cont
 	local audio_name, audio_number, dtmf_rtpmap, dtmf_fmtp, dtmf_number, rtp_ip, rtp_port = self:GetAudioInfoSDP(content_list)
 	if rtp_ip ~= nil and rtp_ip ~= "" then
 		if self._out_or_in then
-			A_RtpSystem:SetToRtp(self._sip_system, self._call_id, rtp_ip, rtp_port)
+			A_RtpSystem:SetToRtp(self._use_rtp.sip_system, self._use_rtp.call_id, rtp_ip, rtp_port)
 		else
-			A_RtpSystem:SetFromRtp(self._sip_system, self._call_id, rtp_ip, rtp_port)
+			A_RtpSystem:SetFromRtp(self._use_rtp.sip_system, self._use_rtp.call_id, rtp_ip, rtp_port)
 		end
 		sip_body = self:GenSDP()
 		sip_head = sip_head .. "Content-Type: application/sdp\r\n"
@@ -883,9 +883,9 @@ function ALittle.SipCall:HandleCallSipReInvite(method, status, response_list, co
 	local audio_name, audio_number, dtmf_rtpmap, dtmf_fmtp, dtmf_number, rtp_ip, rtp_port = self:GetAudioInfoSDP(content_list)
 	if rtp_ip ~= nil and rtp_ip ~= "" then
 		if self._out_or_in then
-			A_RtpSystem:SetToRtp(self._sip_system, self._call_id, rtp_ip, rtp_port)
+			A_RtpSystem:SetToRtp(self._use_rtp.sip_system, self._use_rtp.call_id, rtp_ip, rtp_port)
 		else
-			A_RtpSystem:SetFromRtp(self._sip_system, self._call_id, rtp_ip, rtp_port)
+			A_RtpSystem:SetFromRtp(self._use_rtp.sip_system, self._use_rtp.call_id, rtp_ip, rtp_port)
 		end
 	end
 	sip_body = self:GenSDP()
