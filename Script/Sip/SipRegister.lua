@@ -9,8 +9,8 @@ local ___ipairs = ipairs
 
 ALittle.RegStruct(-1329691084, "ALittle.RegisterInfo", {
 name = "ALittle.RegisterInfo", ns_name = "ALittle", rl_name = "RegisterInfo", hash_code = -1329691084,
-name_list = {"account","password","last_resgiter_time","check_register_time"},
-type_list = {"string","string","int","int"},
+name_list = {"account","auth_account","auth_password","last_resgiter_time","check_register_time"},
+type_list = {"string","string","string","int","int"},
 option_map = {}
 })
 
@@ -49,36 +49,38 @@ function ALittle.SipRegister:GetExpires()
 	return self._expires
 end
 
-function ALittle.SipRegister:GetPassword(account)
+function ALittle.SipRegister:GetRegisterInfo(account)
 	local info = self._register_map[account]
 	if info == nil then
 		return nil
 	end
-	return info.password
+	return info
 end
 
 function ALittle.SipRegister:HandleRegisterSucceed(account)
 	self._check_map[account] = nil
 end
 
-function ALittle.SipRegister:ReloadRegister(account_map_password)
+function ALittle.SipRegister:ReloadRegister(account_map_info)
 	local remove_map = {}
 	for account, value in ___pairs(self._register_map) do
 		remove_map[account] = value
 	end
-	for account, password in ___pairs(account_map_password) do
+	for account, detail in ___pairs(account_map_info) do
 		local info = self._register_map[account]
 		if info == nil then
 			info = {}
 			info.last_resgiter_time = 0
 			info.check_register_time = 0
 			info.account = account
-			info.password = password
+			info.auth_account = detail.auth_account
+			info.auth_password = detail.auth_password
 			self._register_map[account] = info
 		else
-			if info.account ~= account or info.password ~= password then
+			if info.account ~= account or info.auth_account ~= detail.auth_account or info.auth_password ~= detail.auth_password then
 				info.account = account
-				info.password = password
+				info.auth_account = detail.auth_account
+				info.auth_password = detail.auth_password
 				info.last_resgiter_time = 0
 				info.check_register_time = 0
 			end
@@ -119,7 +121,7 @@ function ALittle.SipRegister:HandleRegisterTimer()
 		end
 		info.last_resgiter_time = cur_time
 		info.check_register_time = info.last_resgiter_time + self._failed_delay
-		self._sip_system:RegisterAccount(info.account, info.password)
+		self._sip_system:RegisterAccount(info.account)
 		handle_count = handle_count + (1)
 		self._register_patch[self._register_patch_count] = nil
 		self._register_patch_count = self._register_patch_count - (1)
@@ -136,7 +138,7 @@ function ALittle.SipRegister:HandleCheckTimer()
 		if info.check_register_time < cur_time then
 			info.last_resgiter_time = cur_time
 			info.check_register_time = info.last_resgiter_time + self._failed_delay
-			self._sip_system:RegisterAccount(info.account, info.password)
+			self._sip_system:RegisterAccount(info.account)
 		end
 	end
 end

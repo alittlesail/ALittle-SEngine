@@ -2,10 +2,11 @@
 namespace ALittle;
 
 // 注册信息
-protected struct RegisterInfo
+public struct RegisterInfo
 {
-    string account;			// 账号名
-    string password;			// 密码
+    string account;			// 账号名，也是号码
+    string auth_account;		// 用于鉴权的账号
+    string auth_password;	// 用于鉴权的密码
     int last_resgiter_time;	// 上次注册时间
     int check_register_time;	// 检查注册应答时间
 }
@@ -64,11 +65,11 @@ public class SipRegister
     protected fun GetExpires() : int { return this._expires; }
 
     // 获取密码
-    public fun GetPassword(string account) : string
+    public fun GetRegisterInfo(string account) : RegisterInfo
     {
         var info = this._register_map[account];
         if (info == null) return null;
-        return info.password;
+        return info;
     }
 
     // 当SIP流程确认注册成功之后，那么调用这个函数
@@ -78,7 +79,7 @@ public class SipRegister
     }
 
     // 重新加载账号配置
-    public fun ReloadRegister(Map<string, string> account_map_password)
+    public fun ReloadRegister(Map<string, RegisterInfo> account_map_info)
     {
         // 把当前的信息都认为是要移除的
         var remove_map = new Map<string, RegisterInfo>();
@@ -86,7 +87,7 @@ public class SipRegister
         	remove_map[account] = value;
 
         // 遍历所有数据，整理到_register_map
-        for (var account, password in account_map_password)
+        for (var account, detail in account_map_info)
         {
             var info = this._register_map[account];
             // 构造info
@@ -96,16 +97,20 @@ public class SipRegister
                 info.last_resgiter_time = 0;
                 info.check_register_time = 0;
                 info.account = account;
-                info.password = password;
+                info.auth_account = detail.auth_account;
+                info.auth_password = detail.auth_password;
                 this._register_map[account] = info;
             }
             else
             {
                 // 如果csv信息不一致，那么重新标记last_register_time
-                if (info.account != account || info.password != password)
+                if (info.account != account
+                    || info.auth_account != detail.auth_account
+                    || info.auth_password != detail.auth_password)
                 {
                     info.account = account;
-                    info.password = password;
+                    info.auth_account = detail.auth_account;
+                    info.auth_password = detail.auth_password;
                     info.last_resgiter_time = 0;
                     info.check_register_time = 0;
                 }
@@ -164,7 +169,7 @@ public class SipRegister
             info.last_resgiter_time = cur_time;
             info.check_register_time = info.last_resgiter_time + this._failed_delay;
             // 执行注册
-            this._sip_system.RegisterAccount(info.account, info.password);
+            this._sip_system.RegisterAccount(info.account);
             // 添加处理数量
             handle_count += 1;
 
@@ -193,7 +198,7 @@ public class SipRegister
                 info.last_resgiter_time = cur_time;
                 info.check_register_time = info.last_resgiter_time + this._failed_delay;
                 // 执行注册
-                this._sip_system.RegisterAccount(info.account, info.password);
+                this._sip_system.RegisterAccount(info.account);
             }
         }
     }

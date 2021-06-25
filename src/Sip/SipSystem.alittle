@@ -383,7 +383,15 @@ public class SipSystem : EventDispatcher
 
                 var uri = this._remote_domain;
                 if (uri == null || uri == "") uri = this._remote_ip..":"..this._remote_port;
-                var auth = SipCall.GenAuth(nonce, realm, from_number, this._sip_register.GetPassword(from_number), "REGISTER", uri);
+                var auth_account = "";
+                var auth_password = "";
+                var info = this._sip_register.GetRegisterInfo(from_number);
+                if (info != null)
+                {
+                    auth_account = info.auth_account;
+                    auth_password = info.auth_password;
+                }
+                var auth = SipCall.GenAuth(nonce, realm, auth_account, auth_password, "REGISTER", uri);
 
                 var via_branch = String_Md5(String_GenerateID("via_branch"));
                 this.Send(this.GenRegister(from_number, call_id, via_branch, from_tag, cseq_number + 1, auth), event.remote_ip, event.remote_port);
@@ -537,7 +545,7 @@ public class SipSystem : EventDispatcher
     //==============================================================================================
 
     // 账号注册
-    public async fun RegisterAccount(string account, string password)
+    public async fun RegisterAccount(string account)
     {
         var call_id = String_Md5(String_GenerateID("call_id"));
         var via_branch = String_Md5(String_GenerateID("via_branch"));
@@ -574,7 +582,7 @@ public class SipSystem : EventDispatcher
     //==============================================================================================
 
     // 发起对被呼叫方的呼叫
-    public fun CallOut(string call_id, string account, string password, string from_number, string to_number, int audio_number, string audio_name, SipUseRtp use_rtp) : string, SipCall
+    public fun CallOut(string call_id, string account, string auth_account, string auth_password, string from_number, string to_number, int audio_number, string audio_name, SipUseRtp use_rtp) : string, SipCall
     {
         if (this._call_map[call_id] != null) return "call_id已存在", null;
 
@@ -596,7 +604,8 @@ public class SipSystem : EventDispatcher
 
         // 保存基础信息
         call_info._account = account;
-        call_info._password = password;
+        call_info._auth_account = auth_account;
+        call_info._auth_password = auth_password;
         call_info._support_100rel = this._support_100_rel;
         call_info._to_sip_domain = this._remote_domain;
 

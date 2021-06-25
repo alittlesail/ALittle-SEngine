@@ -304,7 +304,14 @@ function ALittle.SipSystem:HandleSipInfo(event)
 			if uri == nil or uri == "" then
 				uri = self._remote_ip .. ":" .. self._remote_port
 			end
-			local auth = ALittle.SipCall.GenAuth(nonce, realm, from_number, self._sip_register:GetPassword(from_number), "REGISTER", uri)
+			local auth_account = ""
+			local auth_password = ""
+			local info = self._sip_register:GetRegisterInfo(from_number)
+			if info ~= nil then
+				auth_account = info.auth_account
+				auth_password = info.auth_password
+			end
+			local auth = ALittle.SipCall.GenAuth(nonce, realm, auth_account, auth_password, "REGISTER", uri)
 			local via_branch = ALittle.String_Md5(ALittle.String_GenerateID("via_branch"))
 			self:Send(self:GenRegister(from_number, call_id, via_branch, from_tag, cseq_number + 1, auth), event.remote_ip, event.remote_port)
 		elseif status == "200" then
@@ -416,7 +423,7 @@ function ALittle.SipSystem:HandleUnknowCall(method, status, response_list, conte
 	end
 end
 
-function ALittle.SipSystem:RegisterAccount(account, password)
+function ALittle.SipSystem:RegisterAccount(account)
 	local call_id = ALittle.String_Md5(ALittle.String_GenerateID("call_id"))
 	local via_branch = ALittle.String_Md5(ALittle.String_GenerateID("via_branch"))
 	local from_tag = ALittle.String_Md5(ALittle.String_GenerateID("from_tag"))
@@ -449,7 +456,7 @@ function ALittle.SipSystem:GenRegister(account, call_id, via_branch, from_tag, c
 	return sip
 end
 
-function ALittle.SipSystem:CallOut(call_id, account, password, from_number, to_number, audio_number, audio_name, use_rtp)
+function ALittle.SipSystem:CallOut(call_id, account, auth_account, auth_password, from_number, to_number, audio_number, audio_name, use_rtp)
 	if self._call_map[call_id] ~= nil then
 		return "call_id已存在", nil
 	end
@@ -463,7 +470,8 @@ function ALittle.SipSystem:CallOut(call_id, account, password, from_number, to_n
 	end
 	call_info._use_rtp = use_rtp
 	call_info._account = account
-	call_info._password = password
+	call_info._auth_account = auth_account
+	call_info._auth_password = auth_password
 	call_info._support_100rel = self._support_100_rel
 	call_info._to_sip_domain = self._remote_domain
 	call_info._via_branch = "z9hG4bK-" .. ALittle.String_Md5(ALittle.String_GenerateID("via_branch"))

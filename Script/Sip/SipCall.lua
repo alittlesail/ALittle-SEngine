@@ -905,22 +905,22 @@ function ALittle.SipCall:GenProxyAuth(method, use_to_number)
 		if self._to_sip_domain ~= nil and self._to_sip_domain ~= "" then
 			uri = "sip:" .. to_number .. self._to_sip_domain
 		end
-		auth = ALittle.SipCall.GenAuth(self._callout_auth_nonce, self._callout_auth_realm, self._account, self._password, method, uri)
+		auth = ALittle.SipCall.GenAuth(self._callout_auth_nonce, self._callout_auth_realm, self._auth_account, self._auth_password, method, uri)
 		auth = "Proxy-Authorization: " .. auth .. "\r\n"
 	end
 	return auth
 end
 
-function ALittle.SipCall.GenAuthResponse(nonce, realm, account, password, method, uri)
-	local response_1 = ALittle.String_Md5(account .. ":" .. realm .. ":" .. password)
+function ALittle.SipCall.GenAuthResponse(nonce, realm, auth_account, auth_password, method, uri)
+	local response_1 = ALittle.String_Md5(auth_account .. ":" .. realm .. ":" .. auth_password)
 	local response_2 = ALittle.String_Md5(method .. ":" .. uri)
 	local response = ALittle.String_Md5(response_1 .. ":" .. nonce .. ":" .. response_2)
 	return response
 end
 
-function ALittle.SipCall.GenAuth(nonce, realm, account, password, method, uri)
-	local response = ALittle.SipCall.GenAuthResponse(nonce, realm, account, password, method, uri)
-	return "Digest username=\"" .. account .. "\",realm=\"" .. realm .. "\",nonce=\"" .. nonce .. "\",uri=\"" .. uri .. "\",response=\"" .. response .. "\",algorithm=MD5"
+function ALittle.SipCall.GenAuth(nonce, realm, auth_account, auth_password, method, uri)
+	local response = ALittle.SipCall.GenAuthResponse(nonce, realm, auth_account, auth_password, method, uri)
+	return "Digest username=\"" .. auth_account .. "\",realm=\"" .. realm .. "\",nonce=\"" .. nonce .. "\",uri=\"" .. uri .. "\",response=\"" .. response .. "\",algorithm=MD5"
 end
 
 function ALittle.SipCall:GenCmd(method, swap)
