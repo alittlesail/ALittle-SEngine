@@ -49,11 +49,12 @@ function ALittle.SipSystem:Ctor()
 	___rawset(self, "_remote_port", 5060)
 	___rawset(self, "_remote_domain", "")
 	___rawset(self, "_account_map", {})
+	___rawset(self, "_pre_account", "")
 	___rawset(self, "_support_100_rel", false)
 	___rawset(self, "_call_map", {})
 end
 
-function ALittle.SipSystem:Setup(sip_register, self_ip, self_port, remote_ip, remote_port, remote_domain, support_100_rel)
+function ALittle.SipSystem:Setup(sip_register, self_ip, self_port, remote_ip, remote_port, remote_domain, support_100_rel, pre_account)
 	self._sip_register = sip_register
 	self._self_ip = self_ip
 	self._self_port = self_port
@@ -65,6 +66,7 @@ function ALittle.SipSystem:Setup(sip_register, self_ip, self_port, remote_ip, re
 	A_UdpSystem:AddEventListener(___all_struct[-1948184705], self, self.HandleSipInfo)
 	self._resend_weak_map = ALittle.CreateKeyWeakMap()
 	self._session_weak_map = ALittle.CreateKeyWeakMap()
+	self._pre_account = pre_account
 	self._loop_resend = ALittle.LoopFunction(Lua.Bind(self.HandleUpdateResend, self), -1, 1000, 1000)
 	self._loop_resend:Start()
 	self._loop_session = ALittle.LoopFunction(Lua.Bind(self.HandleUpdateSession, self), -1, 6000, 1000)
@@ -99,6 +101,17 @@ function ALittle.SipSystem:ReloadAccount(account_map_password)
 		end
 	end
 	self._account_map = new_map
+end
+
+function ALittle.SipSystem:DeletePreAccount(from_number)
+	if self._pre_account == nil or self._pre_account == "" then
+		return from_number
+	end
+	local index = ALittle.String_Find(from_number, self._pre_account)
+	if index == nil then
+		return nil
+	end
+	return ALittle.String_Sub(from_number, ALittle.String_Len(self._pre_account) + 1)
 end
 
 function ALittle.SipSystem:GetAccountRoute(from_number)

@@ -46,6 +46,8 @@ public class SipSystem : EventDispatcher
 
     // 账号信息
     private Map<string, SipAccount> _account_map = new Map<string, SipAccount>();
+    // 主叫前缀
+    private string _pre_account = "";
 
     // 是否支持100rel
     private bool _support_100_rel = false;
@@ -61,7 +63,7 @@ public class SipSystem : EventDispatcher
     private Map<SipCall, bool> _session_weak_map;
     private LoopFunction _loop_session;
 
-    public fun Setup(SipRegister sip_register, string self_ip, int self_port, string remote_ip, int remote_port, string remote_domain, bool support_100_rel)
+    public fun Setup(SipRegister sip_register, string self_ip, int self_port, string remote_ip, int remote_port, string remote_domain, bool support_100_rel, string pre_account)
     {
         this._sip_register = sip_register;
         this._self_ip = self_ip;
@@ -80,6 +82,7 @@ public class SipSystem : EventDispatcher
         // 初始化重发机制容器
         this._resend_weak_map = CreateKeyWeakMap();
         this._session_weak_map = CreateKeyWeakMap();
+        this._pre_account = pre_account;
 
         // 每秒检查定时
         this._loop_resend = new LoopFunction(bind(this.HandleUpdateResend, this), -1, 1000, 1000);
@@ -130,6 +133,17 @@ public class SipSystem : EventDispatcher
             }
         }
         this._account_map = new_map;
+    }
+
+    // 删除主叫前缀
+    public fun DeletePreAccount(string from_number) : string
+    {
+        if (this._pre_account == null || this._pre_account == "") return from_number;
+
+        var index = String_Find(from_number, this._pre_account);
+        if (index == null) return null;
+
+        return String_Sub(from_number, String_Len(this._pre_account) + 1);
     }
 
     public fun GetAccountRoute(string from_number) : string
