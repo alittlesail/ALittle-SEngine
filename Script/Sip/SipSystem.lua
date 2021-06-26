@@ -14,6 +14,12 @@ name_list = {"target"},
 type_list = {"ALittle.EventDispatcher"},
 option_map = {}
 })
+ALittle.RegStruct(1232212057, "ALittle.SipCallLimit", {
+name = "ALittle.SipCallLimit", ns_name = "ALittle", rl_name = "SipCallLimit", hash_code = 1232212057,
+name_list = {"call_time","call_count"},
+type_list = {"int","int"},
+option_map = {}
+})
 ALittle.RegStruct(-1220217441, "ALittle.SipCallStepEvent", {
 name = "ALittle.SipCallStepEvent", ns_name = "ALittle", rl_name = "SipCallStepEvent", hash_code = -1220217441,
 name_list = {"target","call_info"},
@@ -52,25 +58,39 @@ function ALittle.SipSystem:Ctor()
 	___rawset(self, "_pre_account", "")
 	___rawset(self, "_support_100_rel", false)
 	___rawset(self, "_call_map", {})
+	___rawset(self, "_account_call_unit", 0)
+	___rawset(self, "_account_call_count", 0)
+	___rawset(self, "_account_call_limit", {})
 end
 
-function ALittle.SipSystem:Setup(sip_register, self_ip, self_port, remote_ip, remote_port, remote_domain, support_100_rel, pre_account)
+function ALittle.SipSystem:Setup(sip_register, self_ip, self_port, remote_ip, remote_port, remote_domain)
 	self._sip_register = sip_register
 	self._self_ip = self_ip
 	self._self_port = self_port
 	self._remote_ip = remote_ip
 	self._remote_port = remote_port
 	self._remote_domain = remote_domain
-	self._support_100_rel = support_100_rel
 	__CPPAPI_ServerSchedule:CreateUdpServer(self._self_ip, self._self_port)
 	A_UdpSystem:AddEventListener(___all_struct[-1948184705], self, self.HandleSipInfo)
 	self._resend_weak_map = ALittle.CreateKeyWeakMap()
 	self._session_weak_map = ALittle.CreateKeyWeakMap()
-	self._pre_account = pre_account
 	self._loop_resend = ALittle.LoopFunction(Lua.Bind(self.HandleUpdateResend, self), -1, 1000, 1000)
 	self._loop_resend:Start()
 	self._loop_session = ALittle.LoopFunction(Lua.Bind(self.HandleUpdateSession, self), -1, 6000, 1000)
 	self._loop_session:Start()
+end
+
+function ALittle.SipSystem:SetPreAccount(pre_account)
+	self._pre_account = pre_account
+end
+
+function ALittle.SipSystem:SetSupport100Rel(support_100_rel)
+	self._support_100_rel = support_100_rel
+end
+
+function ALittle.SipSystem:SetAccountCallUnitCount(call_unit, call_count)
+	self._account_call_unit = call_unit
+	self._account_call_count = call_count
 end
 
 function ALittle.SipSystem:Shutdown()
@@ -216,7 +236,7 @@ function ALittle.SipSystem:HandleUpdateResend()
 		elseif call_info._sip_step == 8 then
 			if call_info._forbidden_count < 5 then
 				if cur_time - call_info._sip_send_time > 10 then
-					call_info:CallInForbiddenImpl()
+					call_info:CallInForbiddenImpl(nil)
 				end
 			else
 				if remove_map == nil then
@@ -471,7 +491,28 @@ end
 
 function ALittle.SipSystem:CallOut(call_id, account, auth_account, auth_password, from_number, to_number, audio_number, audio_name, use_rtp)
 	if self._call_map[call_id] ~= nil then
-		return "call_id已存在", nil
+		return "call_id is exist", nil
+	end
+	if self._account_call_unit > 0 and self._account_call_count > 0 and self._sip_register ~= nil and self._sip_register:GetRegisterInfo(account) ~= nil then
+		local cur_time = ALittle.Time_GetCurTime()
+		local limit_info = self._account_call_limit[account]
+		if limit_info == nil then
+			limit_info = {}
+			limit_info.call_time = cur_time
+			limit_info.call_count = 1
+			self._account_call_limit[account] = limit_info
+		else
+			local end_time = limit_info.call_time + self._account_call_unit
+			if cur_time <= end_time then
+				if limit_info.call_count >= self._account_call_count then
+					return "call rate limit", nil
+				end
+				limit_info.call_count = limit_info.call_count + (1)
+			else
+				limit_info.call_time = cur_time
+				limit_info.call_count = 1
+			end
+		end
 	end
 	local start_time = ALittle.Time_GetCurTime()
 	local call_info = ALittle.SipCall(self)

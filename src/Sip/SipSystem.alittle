@@ -32,6 +32,13 @@ public struct SipAccount
     int register_time;
 }
 
+// 呼叫限制
+public struct SipCallLimit
+{
+    int call_time;		// 第一通呼叫时间
+    int call_count;		// 单位时间内呼叫次数
+}
+
 public class SipSystem : EventDispatcher
 {
     // 注册机制
@@ -63,7 +70,12 @@ public class SipSystem : EventDispatcher
     private Map<SipCall, bool> _session_weak_map;
     private LoopFunction _loop_session;
 
-    public fun Setup(SipRegister sip_register, string self_ip, int self_port, string remote_ip, int remote_port, string remote_domain, bool support_100_rel, string pre_account)
+    // 呼叫限制
+    private int _account_call_unit = 0;
+    private int _account_call_count = 0;
+    private Map<string, SipCallLimit> _account_call_limit = new Map<string, SipCallLimit>();
+
+    public fun Setup(SipRegister sip_register, string self_ip, int self_port, string remote_ip, int remote_port, string remote_domain)
     {
         this._sip_register = sip_register;
         this._self_ip = self_ip;
@@ -71,7 +83,6 @@ public class SipSystem : EventDispatcher
         this._remote_ip = remote_ip;
         this._remote_port = remote_port;
         this._remote_domain = remote_domain;
-        this._support_100_rel = support_100_rel;
 
         // 启动SIP服务器
         __CPPAPI_ServerSchedule.CreateUdpServer(this._self_ip, this._self_port);
@@ -82,8 +93,7 @@ public class SipSystem : EventDispatcher
         // 初始化重发机制容器
         this._resend_weak_map = CreateKeyWeakMap();
         this._session_weak_map = CreateKeyWeakMap();
-        this._pre_account = pre_account;
-
+        
         // 每秒检查定时
         this._loop_resend = new LoopFunction(bind(this.HandleUpdateResend, this), -1, 1000, 1000);
         this._loop_resend.Start();
@@ -91,6 +101,16 @@ public class SipSystem : EventDispatcher
         // 每秒检查会话
         this._loop_session = new LoopFunction(bind(this.HandleUpdateSession, this), -1, 6000, 1000);
         this._loop_session.Start();
+    }
+
+    public fun SetPreAccount(string pre_account) { this._pre_account = pre_account; }
+
+    public fun SetSupport100Rel(bool support_100_rel) { this._support_100_rel = support_100_rel; }
+
+    public fun SetAccountCallUnitCount(int call_unit, int call_count)
+    {
+        this._account_call_unit = call_unit;
+        this._account_call_count = call_count;
     }
 
     public fun Shutdown()
@@ -278,7 +298,7 @@ public class SipSystem : EventDispatcher
                 {
                     // 如果呼入拒接，重复发送，只要有应答那么流程就可以顺利结束
                     if (cur_time - call_info._sip_send_time > 10)
-                        call_info.CallInForbiddenImpl();
+                        call_info.CallInForbiddenImpl(null);
                 }
                 else
                 {
@@ -598,7 +618,37 @@ public class SipSystem : EventDispatcher
     // 发起对被呼叫方的呼叫
     public fun CallOut(string call_id, string account, string auth_account, string auth_password, string from_number, string to_number, int audio_number, string audio_name, SipUseRtp use_rtp) : string, SipCall
     {
-        if (this._call_map[call_id] != null) return "call_id已存在", null;
+        if (this._call_map[call_id] != null) return "call_id is exist", null;
+
+        // 检查呼叫限制
+        if (this._account_call_unit > 0 && this._account_call_count > 0
+        	&& this._sip_register != null && this._sip_register.GetRegisterInfo(account) != null)
+        {
+            var cur_time = Time_GetCurTime();
+
+            var limit_info = this._account_call_limit[account];
+            if (limit_info == null)
+            {
+                limit_info = new SipCallLimit();
+                limit_info.call_time = cur_time;
+                limit_info.call_count = 1;
+                this._account_call_limit[account] = limit_info;
+            }
+            else
+            {
+                var end_time = limit_info.call_time + this._account_call_unit;
+                if (cur_time <= end_time)
+                {
+                    if (limit_info.call_count >= this._account_call_count) return "call rate limit", null;
+                    limit_info.call_count += 1;
+                }
+                else
+                {
+                    limit_info.call_time = cur_time;
+                    limit_info.call_count = 1;
+                }
+            }
+        }
 
         var start_time = Time_GetCurTime();
 

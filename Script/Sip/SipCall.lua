@@ -90,7 +90,7 @@ function ALittle.SipCall:StopCall(reason)
 	if self._sip_step == 0 or self._sip_step == 1 or self._sip_step == 2 then
 		self:CallOutCancel()
 	elseif self._sip_step == 4 or self._sip_step == 5 or self._sip_step == 6 then
-		self:CallInForbidden()
+		self:CallInForbidden(reason)
 	elseif self._sip_step == 9 then
 		self:TalkBye()
 	end
@@ -311,13 +311,13 @@ function ALittle.SipCall:HandleSipInfoCreateCallInInvite(method, status, respons
 	self._sip_step = 5
 	self:DispatchStepChanged()
 	if not self._sip_system:CheckAccount(self._from_number, remote_sip_ip, remote_sip_port) then
-		return "账号检查失败"
+		return "account is not exist"
 	end
 	local from_ssrc = ALittle.Math_RandomInt(1, 100000)
 	local to_ssrc = ALittle.Math_RandomInt(1, 100000)
 	local use_rtp = A_RtpSystem:UseRtp(self._sip_system, self._call_id, self_sip_ip, from_ssrc, to_ssrc)
 	if use_rtp == nil then
-		return "Rtp资源不足"
+		return "rtp resource is not enough"
 	end
 	self._use_rtp = use_rtp
 	if rtp_ip ~= nil and rtp_ip ~= "" then
@@ -370,13 +370,13 @@ function ALittle.SipCall:HandleSipInfoAtCallInInvite(method, status, response_li
 	end
 end
 
-function ALittle.SipCall:CallInForbidden()
+function ALittle.SipCall:CallInForbidden(reason)
 	if self._sip_step == 6 or self._sip_step == 4 or self._sip_step == 5 then
-		self:CallInForbiddenImpl()
+		self:CallInForbiddenImpl(reason)
 	end
 end
 
-function ALittle.SipCall:CallInForbiddenImpl()
+function ALittle.SipCall:CallInForbiddenImpl(reason)
 	if self._to_tag == nil or self._to_tag == "" then
 		self._to_tag = ALittle.String_Md5(ALittle.String_GenerateID("to_tag"))
 	end
@@ -385,6 +385,9 @@ function ALittle.SipCall:CallInForbiddenImpl()
 	sip_head = sip_head .. "CSeq: " .. self._callin_invite_cseq .. " INVITE\r\n"
 	sip_head = sip_head .. self:GenVia(false)
 	sip_head = sip_head .. "Max-Forwards: 70\r\n"
+	if reason ~= nil then
+		sip_head = sip_head .. "Reason: Q.850;cause=17;text=\"user busy, " .. reason .. "\"\r\n"
+	end
 	sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
 	self._sip_system:Send(sip_head, self._sip_ip, self._sip_port)
 	self._sip_step = 8

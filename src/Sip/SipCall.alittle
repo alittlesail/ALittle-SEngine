@@ -168,7 +168,7 @@ public class SipCall
         if (this._sip_step == SipStep.OUT_INVITE || this._sip_step == SipStep.OUT_TRYING || this._sip_step == SipStep.OUT_RINGING)
             this.CallOutCancel();
         elseif (this._sip_step == SipStep.IN_INVITE || this._sip_step == SipStep.IN_TRYING || this._sip_step == SipStep.IN_RINGING)
-            this.CallInForbidden();
+            this.CallInForbidden(reason);
         elseif (this._sip_step == SipStep.TALK)
             this.TalkBye();
     }
@@ -451,7 +451,7 @@ public class SipCall
 
         // 检查呼叫来源
         if (!this._sip_system.CheckAccount(this._from_number, remote_sip_ip, remote_sip_port))
-        	return "账号检查失败";
+        	return "account is not exist";
 
         // 随机出ssrc
         var from_ssrc = Math_RandomInt(1, 100000);
@@ -459,7 +459,7 @@ public class SipCall
 
         // 申请rtp资源
         var use_rtp = A_RtpSystem.UseRtp(this._sip_system, this._call_id, self_sip_ip, from_ssrc, to_ssrc);
-        if (use_rtp == null) return "Rtp资源不足";
+        if (use_rtp == null) return "rtp resource is not enough";
 
         // 保存rtp信息
         this._use_rtp = use_rtp;
@@ -526,13 +526,13 @@ public class SipCall
         }
     }
 
-    public fun CallInForbidden()
+    public fun CallInForbidden(string reason)
     {
         if (this._sip_step == SipStep.IN_RINGING || this._sip_step == SipStep.IN_INVITE || this._sip_step == SipStep.IN_TRYING)
-            this.CallInForbiddenImpl();
+            this.CallInForbiddenImpl(reason);
     }
 
-    public fun CallInForbiddenImpl()
+    public fun CallInForbiddenImpl(string reason)
     {
         if (this._to_tag == null || this._to_tag == "") this._to_tag = String_Md5(String_GenerateID("to_tag"));
 
@@ -541,6 +541,7 @@ public class SipCall
 		sip_head = sip_head.."CSeq: "..this._callin_invite_cseq.." INVITE\r\n";
 		sip_head = sip_head..this.GenVia(false);
 		sip_head = sip_head.."Max-Forwards: 70\r\n";
+        if (reason != null) sip_head = sip_head.."Reason: Q.850;cause=17;text=\"user busy, "..reason.."\"\r\n";
 		sip_head = sip_head.."Content-Length: 0\r\n\r\n";
         this._sip_system.Send(sip_head, this._sip_ip, this._sip_port);
 
