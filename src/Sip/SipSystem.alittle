@@ -111,6 +111,8 @@ public class SipSystem : EventDispatcher
     {
         this._account_call_unit = call_unit;
         this._account_call_count = call_count;
+
+        this._account_call_limit = new Map<string, SipCallLimit>();
     }
 
     public fun Shutdown()
