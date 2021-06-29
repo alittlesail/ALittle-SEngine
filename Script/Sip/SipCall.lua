@@ -61,6 +61,10 @@ end
 
 function ALittle.SipCall:HandleSipInfo(method, status, response_list, content_list)
 	self._sip_receive_time = ALittle.Time_GetCurTime()
+	local sxx = ALittle.String_Sub(status, 1, 1)
+	if method == "SIP/2.0" and (sxx == "4" or sxx == "5" or sxx == "6") and status ~= "401" and status ~= "407" then
+		self:UpdateFailedReason(status, content_list)
+	end
 	if method == "UPDATE" then
 		self:HandleCallSipUpdate(method, status, response_list, content_list)
 	elseif self._sip_step == 0 then
@@ -204,10 +208,7 @@ function ALittle.SipCall:HandleSipInfoAtTalk(method, status, response_list, cont
 			sip_head = sip_head .. "User-Agent: ALittle\r\n"
 			sip_head = sip_head .. "Max-Forwards: 70\r\n"
 			sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
-			local reason = ALittle.SipCall.GetKeyValueFromUDP(content_list, "REASON")
-			if reason ~= nil and reason ~= "" then
-				self._stop_reason = reason
-			end
+			self._sip_system:Send(sip_head, self._sip_ip, self._sip_port)
 			return
 		end
 	end
@@ -222,7 +223,7 @@ function ALittle.SipCall:HandleSipInfoAtTalkBying(method, status, response_list,
 			return
 		end
 		if cseq_method == "INVITE" and self._sip_step ~= 9 then
-			self:HandleResponseOKForInvite(content_list)
+			self:HandleResponseOKForInvite(status, content_list)
 			return
 		end
 		return
@@ -272,6 +273,16 @@ function ALittle.SipCall:SendSession(cur_time)
 	sip_head = sip_head .. "Content-Type: application/sdp\r\n"
 	sip_head = sip_head .. "Content-Length: " .. ALittle.String_Len(sip_body) .. "\r\n\r\n"
 	self._sip_system:Send(sip_head .. sip_body, self._sip_ip, self._sip_port)
+end
+
+function ALittle.SipCall:UpdateFailedReason(status, content_list)
+	local reason = ALittle.SipCall.GetKeyValueFromUDP(content_list, "REASON")
+	if reason == nil or reason == "" then
+		reason = status .. "-FAILED"
+	end
+	if self._failed_reason == nil or self._failed_reason == "" then
+		self._failed_reason = reason
+	end
 end
 
 function ALittle.SipCall:HandleSipInfoCreateCallInInvite(method, status, response_list, content_list, self_sip_ip, self_sip_port, remote_sip_ip, remote_sip_port)
@@ -386,7 +397,7 @@ function ALittle.SipCall:CallInForbiddenImpl(reason)
 	sip_head = sip_head .. self:GenVia(false)
 	sip_head = sip_head .. "Max-Forwards: 70\r\n"
 	if reason ~= nil then
-		sip_head = sip_head .. "Reason: Q.850;cause=17;text=\"user busy, " .. reason .. "\"\r\n"
+		sip_head = sip_head .. "Reason: " .. reason .. "\r\n"
 	end
 	sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
 	self._sip_system:Send(sip_head, self._sip_ip, self._sip_port)
@@ -583,10 +594,6 @@ function ALittle.SipCall:HandleSipInfoAtCallOutTrying(method, status, response_l
 				A_RtpSystem:SetFromRtp(self._use_rtp.sip_system, self._use_rtp.call_id, rtp_ip, rtp_port)
 			end
 		end
-		local reason = ALittle.SipCall.GetKeyValueFromUDP(content_list, "REASON")
-		if reason ~= nil and reason ~= "" then
-			self._stop_reason = reason
-		end
 		self._receive_183_180 = true
 		self._sip_step = 2
 		self:DispatchStepChanged()
@@ -660,13 +667,6 @@ function ALittle.SipCall:HandleSipInfoAtCallOutRinging(method, status, response_
 		sip_head = sip_head .. "Max-Forwards: 70\r\n"
 		sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
 		self._sip_system:Send(sip_head, self._sip_ip, self._sip_port)
-		local reason = ALittle.SipCall.GetKeyValueFromUDP(content_list, "REASON")
-		if reason == nil or reason == "" then
-			reason = status .. "-FAILED"
-		end
-		if self._stop_reason == nil or self._stop_reason == "" then
-			self._stop_reason = reason
-		end
 		local cseq_number, cseq_method = ALittle.SipCall.GetCseqFromUDP(content_list)
 		if status == "500" and cseq_method == "PRACK" then
 			return
@@ -688,17 +688,13 @@ function ALittle.SipCall:HandleSipInfoAtCallOutRinging(method, status, response_
 				A_RtpSystem:SetFromRtp(self._use_rtp.sip_system, self._use_rtp.call_id, rtp_ip, rtp_port)
 			end
 		end
-		local reason = ALittle.SipCall.GetKeyValueFromUDP(content_list, "REASON")
-		if reason ~= nil and reason ~= "" then
-			self._stop_reason = reason
-		end
 		self:CheckRequire100rel(content_list)
 		return
 	end
 	local cseq_number, cseq_method = ALittle.SipCall.GetCseqFromUDP(content_list)
 	if method == "SIP/2.0" and status == "200" then
 		if cseq_method == "INVITE" and self._sip_step ~= 9 then
-			self:HandleResponseOKForInvite(content_list)
+			self:HandleResponseOKForInvite(status, content_list)
 			self._sip_step = 9
 			self:DispatchStepChanged()
 			return
@@ -742,13 +738,6 @@ function ALittle.SipCall:HandleSipInfoAtCallOutCanceling(method, status, respons
 			sip_head = sip_head .. "Max-Forwards: 70\r\n"
 			sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
 			self._sip_system:Send(sip_head, self._sip_ip, self._sip_port)
-			local reason = ALittle.SipCall.GetKeyValueFromUDP(content_list, "REASON")
-			if reason == nil or reason == "" then
-				reason = status .. "-CANCELING-FAILED"
-			end
-			if reason ~= nil and reason ~= "" then
-				self._stop_reason = reason
-			end
 			self._sip_step = 11
 			self:DispatchStepChanged()
 			return
@@ -756,7 +745,7 @@ function ALittle.SipCall:HandleSipInfoAtCallOutCanceling(method, status, respons
 	end
 	if method == "SIP/2.0" and status == "200" then
 		if cseq_method == "INVITE" and self._sip_step ~= 9 then
-			self:HandleResponseOKForInvite(content_list)
+			self:HandleResponseOKForInvite(status, content_list)
 			self._sip_step = 9
 			self:DispatchStepChanged()
 			self:StopCall("正在Cancel的时候收到200接听事件，现在立刻发送bye来挂断电话")
@@ -765,7 +754,7 @@ function ALittle.SipCall:HandleSipInfoAtCallOutCanceling(method, status, respons
 	end
 end
 
-function ALittle.SipCall:HandleResponseOKForInvite(content_list)
+function ALittle.SipCall:HandleResponseOKForInvite(status, content_list)
 	if self._sip_step == 9 then
 		return
 	end
@@ -816,10 +805,6 @@ function ALittle.SipCall:HandleResponseOKForInvite(content_list)
 	sip_head = sip_head .. "Max-Forwards: 70\r\n"
 	sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
 	self._sip_system:Send(sip_head, self._sip_ip, self._sip_port)
-	local reason = ALittle.SipCall.GetKeyValueFromUDP(content_list, "REASON")
-	if reason ~= nil and reason ~= "" then
-		self._stop_reason = reason
-	end
 end
 
 function ALittle.SipCall:HandleCallSipUpdate(method, status, response_list, content_list)

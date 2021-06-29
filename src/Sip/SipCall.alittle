@@ -83,6 +83,8 @@ public class SipCall
 
     // 呼叫失败的错误
     public string _stop_reason;
+    // 收到的错误
+    public string _failed_reason;
 
     // 呼叫标识
     public string _via_branch;
@@ -135,6 +137,10 @@ public class SipCall
     {
         // 保存接收时间
         this._sip_receive_time = Time_GetCurTime();
+
+        var sxx = String_Sub(status, 1, 1);
+    	if (method == "SIP/2.0" && (sxx == "4" || sxx == "5" || sxx == "6") && status != "401" && status != "407")
+            this.UpdateFailedReason(status, content_list);
 
         if (method == "UPDATE")
         	this.HandleCallSipUpdate(method, status, response_list, content_list);
@@ -307,10 +313,7 @@ public class SipCall
 				sip_head = sip_head.."User-Agent: ALittle\r\n";
 				sip_head = sip_head.."Max-Forwards: 70\r\n";
 				sip_head = sip_head.."Content-Length: 0\r\n\r\n";
-
-                var reason = SipCall.GetKeyValueFromUDP(content_list, "REASON");
-                if (reason != null && reason != "") this._stop_reason = reason;
-
+                this._sip_system.Send(sip_head, this._sip_ip, this._sip_port);
                 return;
             }
         }
@@ -330,7 +333,7 @@ public class SipCall
 
             if (cseq_method == "INVITE" && this._sip_step != SipStep.TALK)
             {
-                this.HandleResponseOKForInvite(content_list);
+                this.HandleResponseOKForInvite(status, content_list);
                 return;
             }
 
@@ -389,6 +392,14 @@ public class SipCall
 		sip_head = sip_head.."Content-Type: application/sdp\r\n";
 		sip_head = sip_head.."Content-Length: "..String_Len(sip_body).."\r\n\r\n";
         this._sip_system.Send(sip_head..sip_body, this._sip_ip, this._sip_port);
+    }
+
+    // 更新错误原因
+    private fun UpdateFailedReason(string status, List<string> content_list)
+    {
+        var reason = SipCall.GetKeyValueFromUDP(content_list, "REASON");
+        if (reason == null || reason == "") reason = status.."-FAILED";
+        if (this._failed_reason == null || this._failed_reason == "") this._failed_reason = reason;
     }
 
     // 呼入部分======================================================================================================================
@@ -541,7 +552,7 @@ public class SipCall
 		sip_head = sip_head.."CSeq: "..this._callin_invite_cseq.." INVITE\r\n";
 		sip_head = sip_head..this.GenVia(false);
 		sip_head = sip_head.."Max-Forwards: 70\r\n";
-        if (reason != null) sip_head = sip_head.."Reason: Q.850;cause=17;text=\"user busy, "..reason.."\"\r\n";
+        if (reason != null) sip_head = sip_head.."Reason: "..reason.."\r\n";
 		sip_head = sip_head.."Content-Length: 0\r\n\r\n";
         this._sip_system.Send(sip_head, this._sip_ip, this._sip_port);
 
@@ -761,9 +772,6 @@ public class SipCall
                     A_RtpSystem.SetFromRtp(this._use_rtp.sip_system, this._use_rtp.call_id, rtp_ip, rtp_port);
             }
 
-            var reason = SipCall.GetKeyValueFromUDP(content_list, "REASON");
-            if (reason != null && reason != "") this._stop_reason = reason;
-
             this._receive_183_180 = true;
             this._sip_step = SipStep.OUT_RINGING;
             this.DispatchStepChanged();
@@ -850,11 +858,7 @@ public class SipCall
 			sip_head = sip_head.."Content-Length: 0\r\n\r\n";
             this._sip_system.Send(sip_head, this._sip_ip, this._sip_port);
 
-            var reason = SipCall.GetKeyValueFromUDP(content_list, "REASON");
-            if (reason == null || reason == "") reason = status.."-FAILED";
-            if (this._stop_reason == null || this._stop_reason == "") this._stop_reason = reason;
-
-                // 如果是PRACK出错了，那么就不用结束这个会话
+            // 如果是PRACK出错了，那么就不用结束这个会话
             var cseq_number, cseq_method = SipCall.GetCseqFromUDP(content_list);
             if (status == "500" && cseq_method == "PRACK") return;
 
@@ -877,9 +881,6 @@ public class SipCall
                     A_RtpSystem.SetFromRtp(this._use_rtp.sip_system, this._use_rtp.call_id, rtp_ip, rtp_port);
             }
 
-            var reason = SipCall.GetKeyValueFromUDP(content_list, "REASON");
-            if (reason != null && reason != "") this._stop_reason = reason;
-
             this.CheckRequire100rel(content_list);
             return;
         }
@@ -889,7 +890,7 @@ public class SipCall
         {
             if (cseq_method == "INVITE" && this._sip_step != SipStep.TALK)
             {
-                this.HandleResponseOKForInvite(content_list);
+                this.HandleResponseOKForInvite(status, content_list);
                 this._sip_step = SipStep.TALK;
                 this.DispatchStepChanged();
                 return;
@@ -946,10 +947,6 @@ public class SipCall
 				sip_head = sip_head.."Content-Length: 0\r\n\r\n";
                 this._sip_system.Send(sip_head, this._sip_ip, this._sip_port);
 
-                var reason = SipCall.GetKeyValueFromUDP(content_list, "REASON");
-                if (reason == null || reason == "") reason = status.."-CANCELING-FAILED";
-                if (reason != null && reason != "") this._stop_reason = reason;
-
                 this._sip_step = SipStep.TALK_END;
                 this.DispatchStepChanged();
                 return;
@@ -960,7 +957,7 @@ public class SipCall
         {
             if (cseq_method == "INVITE" && this._sip_step != SipStep.TALK)
             {
-                this.HandleResponseOKForInvite(content_list);
+                this.HandleResponseOKForInvite(status, content_list);
                 this._sip_step = SipStep.TALK;
                 this.DispatchStepChanged();
                 // 立刻发送bye的事件转为bye的状态
@@ -970,7 +967,7 @@ public class SipCall
         }
     }
 
-    private fun HandleResponseOKForInvite(List<string> content_list)
+    private fun HandleResponseOKForInvite(string status, List<string> content_list)
     {
         if (this._sip_step == SipStep.TALK) return;
 
@@ -1024,10 +1021,6 @@ public class SipCall
         sip_head = sip_head.."Max-Forwards: 70\r\n";
         sip_head = sip_head.."Content-Length: 0\r\n\r\n";
         this._sip_system.Send(sip_head, this._sip_ip, this._sip_port);
-
-        var reason = SipCall.GetKeyValueFromUDP(content_list, "REASON");
-        if (reason != null && reason != "") this._stop_reason = reason;
-
     }
 
     public fun HandleCallSipUpdate(string method, string status, List<string> response_list, List<string> content_list)
