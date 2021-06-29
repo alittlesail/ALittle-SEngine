@@ -91,6 +91,7 @@ end
 function ALittle.SipSystem:SetAccountCallUnitCount(call_unit, call_count)
 	self._account_call_unit = call_unit
 	self._account_call_count = call_count
+	self._account_call_limit = {}
 end
 
 function ALittle.SipSystem:Shutdown()
