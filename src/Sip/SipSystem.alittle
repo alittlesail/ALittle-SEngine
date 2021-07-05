@@ -64,11 +64,11 @@ public class SipSystem : EventDispatcher
 
     // 需要重新发送的呼叫
     private Map<SipCall, bool> _resend_weak_map;
-    private LoopFunction _loop_resend;
+    private int _loop_resend;
 
     // 需要重新发送的session的呼叫
     private Map<SipCall, bool> _session_weak_map;
-    private LoopFunction _loop_session;
+    private int _loop_session;
 
     // 呼叫限制
     private int _account_call_unit = 0;
@@ -95,12 +95,10 @@ public class SipSystem : EventDispatcher
         this._session_weak_map = CreateKeyWeakMap();
         
         // 每秒检查定时
-        this._loop_resend = new LoopFunction(bind(this.HandleUpdateResend, this), -1, 1000, 1000);
-        this._loop_resend.Start();
-
+        this._loop_resend = A_LoopSystem.AddTimer(1000, bind(this.HandleUpdateResend, this), -1, 1000);
+        
         // 每秒检查会话
-        this._loop_session = new LoopFunction(bind(this.HandleUpdateSession, this), -1, 6000, 1000);
-        this._loop_session.Start();
+        this._loop_session = A_LoopSystem.AddTimer(1000, bind(this.HandleUpdateSession, this), -1, 6000);
     }
 
     public fun SetPreAccount(string pre_account) { this._pre_account = pre_account; }
@@ -123,13 +121,13 @@ public class SipSystem : EventDispatcher
         // 停止定时器
         if (this._loop_resend != null)
         {
-            this._loop_resend.Stop();
+            A_LoopSystem.RemoveTimer(this._loop_resend);
             this._loop_resend = null;
         }
         
         if (this._loop_session != null)
         {
-            this._loop_session.Stop();
+            A_LoopSystem.RemoveTimer(this._loop_session);
             this._loop_session = null;
         }
     }

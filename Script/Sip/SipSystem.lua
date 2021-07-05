@@ -74,10 +74,8 @@ function ALittle.SipSystem:Setup(sip_register, self_ip, self_port, remote_ip, re
 	A_UdpSystem:AddEventListener(___all_struct[-1948184705], self, self.HandleSipInfo)
 	self._resend_weak_map = ALittle.CreateKeyWeakMap()
 	self._session_weak_map = ALittle.CreateKeyWeakMap()
-	self._loop_resend = ALittle.LoopFunction(Lua.Bind(self.HandleUpdateResend, self), -1, 1000, 1000)
-	self._loop_resend:Start()
-	self._loop_session = ALittle.LoopFunction(Lua.Bind(self.HandleUpdateSession, self), -1, 6000, 1000)
-	self._loop_session:Start()
+	self._loop_resend = A_LoopSystem:AddTimer(1000, Lua.Bind(self.HandleUpdateResend, self), -1, 1000)
+	self._loop_session = A_LoopSystem:AddTimer(1000, Lua.Bind(self.HandleUpdateSession, self), -1, 6000)
 end
 
 function ALittle.SipSystem:SetPreAccount(pre_account)
@@ -97,11 +95,11 @@ end
 function ALittle.SipSystem:Shutdown()
 	A_UdpSystem:RemoveEventListener(___all_struct[-1948184705], self, self.HandleSipInfo)
 	if self._loop_resend ~= nil then
-		self._loop_resend:Stop()
+		A_LoopSystem:RemoveTimer(self._loop_resend)
 		self._loop_resend = nil
 	end
 	if self._loop_session ~= nil then
-		self._loop_session:Stop()
+		A_LoopSystem:RemoveTimer(self._loop_session)
 		self._loop_session = nil
 	end
 end
