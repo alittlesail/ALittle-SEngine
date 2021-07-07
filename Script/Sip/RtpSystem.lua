@@ -197,7 +197,7 @@ function ALittle.RtpSystem:HandleAnyDisconnect(event)
 	end
 	for sip_system, call_id_map_port in ___pairs(info.call_id_map_port) do
 		for call_id, port in ___pairs(call_id_map_port) do
-			sip_system:StopCall(call_id, "rtp server disconnect")
+			sip_system:StopCall(call_id, nil, "rtp server disconnect")
 		end
 	end
 	self._module_map_info[event.route_num] = nil

@@ -84,6 +84,7 @@ public class SipCall
     // 呼叫失败的错误
     public string _stop_reason;
     // 收到的错误
+    public string _failed_response;
     public string _failed_reason;
 
     // 呼叫标识
@@ -124,7 +125,7 @@ public class SipCall
 
     // SDP中 session 以及 version
     public string _sdp_session;
-
+    
     public fun DispatchStepChanged()
     {
         var event = new SipCallStepEvent();
@@ -165,7 +166,7 @@ public class SipCall
     }
 
     // 停止通话======================================================================================================================
-    public fun StopCall(string reason)
+    public fun StopCall(string response, string reason)
     {
         Log(this._call_id.." Stop Call:", reason);
         // 保存停止原因
@@ -174,7 +175,7 @@ public class SipCall
         if (this._sip_step == SipStep.OUT_INVITE || this._sip_step == SipStep.OUT_TRYING || this._sip_step == SipStep.OUT_RINGING)
             this.CallOutCancel();
         elseif (this._sip_step == SipStep.IN_INVITE || this._sip_step == SipStep.IN_TRYING || this._sip_step == SipStep.IN_RINGING)
-            this.CallInForbidden(reason);
+            this.CallInForbidden(response, reason);
         elseif (this._sip_step == SipStep.TALK)
             this.TalkBye();
     }
@@ -397,6 +398,7 @@ public class SipCall
     // 更新错误原因
     private fun UpdateFailedReason(string status, List<string> content_list)
     {
+        this._failed_response = content_list[1];
         var reason = SipCall.GetKeyValueFromUDP(content_list, "REASON");
         if (reason == null || reason == "") reason = status.."-FAILED";
         if (this._failed_reason == null || this._failed_reason == "") this._failed_reason = reason;
@@ -537,17 +539,18 @@ public class SipCall
         }
     }
 
-    public fun CallInForbidden(string reason)
+    public fun CallInForbidden(string response, string reason)
     {
         if (this._sip_step == SipStep.IN_RINGING || this._sip_step == SipStep.IN_INVITE || this._sip_step == SipStep.IN_TRYING)
-            this.CallInForbiddenImpl(reason);
+            this.CallInForbiddenImpl(response, reason);
     }
 
-    public fun CallInForbiddenImpl(string reason)
+    public fun CallInForbiddenImpl(string response, string reason)
     {
         if (this._to_tag == null || this._to_tag == "") this._to_tag = String_Md5(String_GenerateID("to_tag"));
 
-        var sip_head = "SIP/2.0 403 Forbidden\r\n";
+        if (response == null || response == "") response = "SIP/2.0 403 Forbidden";
+        var sip_head = response.."\r\n";
 		sip_head = sip_head..this.GenFromToCallID(false);
 		sip_head = sip_head.."CSeq: "..this._callin_invite_cseq.." INVITE\r\n";
 		sip_head = sip_head..this.GenVia(false);
@@ -961,7 +964,7 @@ public class SipCall
                 this._sip_step = SipStep.TALK;
                 this.DispatchStepChanged();
                 // 立刻发送bye的事件转为bye的状态
-                this.StopCall("正在Cancel的时候收到200接听事件，现在立刻发送bye来挂断电话");
+                this.StopCall(null, "正在Cancel的时候收到200接听事件，现在立刻发送bye来挂断电话");
                 return;
             }
         }

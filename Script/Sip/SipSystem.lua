@@ -235,7 +235,7 @@ function ALittle.SipSystem:HandleUpdateResend()
 		elseif call_info._sip_step == 8 then
 			if call_info._forbidden_count < 5 then
 				if cur_time - call_info._sip_send_time > 10 then
-					call_info:CallInForbiddenImpl(nil)
+					call_info:CallInForbiddenImpl(nil, nil)
 				end
 			else
 				if remove_map == nil then
@@ -360,7 +360,7 @@ function ALittle.SipSystem:HandleSipInfo(event)
 			self._call_map[call_id] = call_info
 			local error = call_info:HandleSipInfoCreateCallInInvite(method, "", response_list, content_list, self._self_ip, self._self_port, event.remote_ip, event.remote_port)
 			if error ~= nil then
-				call_info:StopCall(error)
+				call_info:StopCall(nil, error)
 			else
 				local call_in_event = {}
 				call_in_event.call_info = call_info
@@ -547,12 +547,12 @@ function ALittle.SipSystem:CallOut(call_id, account, auth_account, auth_password
 	return nil, call_info
 end
 
-function ALittle.SipSystem:StopCall(call_id, reason)
+function ALittle.SipSystem:StopCall(call_id, response, reason)
 	local call_info = self._call_map[call_id]
 	if call_info == nil then
 		return
 	end
-	call_info:StopCall(reason)
+	call_info:StopCall(response, reason)
 end
 
 function ALittle.SipSystem:AcceptCallIn(call_id)

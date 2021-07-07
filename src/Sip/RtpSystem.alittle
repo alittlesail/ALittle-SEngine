@@ -273,7 +273,7 @@ protected class RtpSystem
         for (var sip_system, call_id_map_port in info.call_id_map_port)
         {
             for (var call_id, port in call_id_map_port)
-                sip_system.StopCall(call_id, "rtp server disconnect");
+                sip_system.StopCall(call_id, null, "rtp server disconnect");
         }
 
         // 删除信息

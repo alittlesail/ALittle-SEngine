@@ -88,13 +88,13 @@ function ALittle.SipCall:HandleSipInfo(method, status, response_list, content_li
 	end
 end
 
-function ALittle.SipCall:StopCall(reason)
+function ALittle.SipCall:StopCall(response, reason)
 	ALittle.Log(self._call_id .. " Stop Call:", reason)
 	self._stop_reason = reason
 	if self._sip_step == 0 or self._sip_step == 1 or self._sip_step == 2 then
 		self:CallOutCancel()
 	elseif self._sip_step == 4 or self._sip_step == 5 or self._sip_step == 6 then
-		self:CallInForbidden(reason)
+		self:CallInForbidden(response, reason)
 	elseif self._sip_step == 9 then
 		self:TalkBye()
 	end
@@ -276,6 +276,7 @@ function ALittle.SipCall:SendSession(cur_time)
 end
 
 function ALittle.SipCall:UpdateFailedReason(status, content_list)
+	self._failed_response = content_list[1]
 	local reason = ALittle.SipCall.GetKeyValueFromUDP(content_list, "REASON")
 	if reason == nil or reason == "" then
 		reason = status .. "-FAILED"
@@ -381,17 +382,20 @@ function ALittle.SipCall:HandleSipInfoAtCallInInvite(method, status, response_li
 	end
 end
 
-function ALittle.SipCall:CallInForbidden(reason)
+function ALittle.SipCall:CallInForbidden(response, reason)
 	if self._sip_step == 6 or self._sip_step == 4 or self._sip_step == 5 then
-		self:CallInForbiddenImpl(reason)
+		self:CallInForbiddenImpl(response, reason)
 	end
 end
 
-function ALittle.SipCall:CallInForbiddenImpl(reason)
+function ALittle.SipCall:CallInForbiddenImpl(response, reason)
 	if self._to_tag == nil or self._to_tag == "" then
 		self._to_tag = ALittle.String_Md5(ALittle.String_GenerateID("to_tag"))
 	end
-	local sip_head = "SIP/2.0 403 Forbidden\r\n"
+	if response == nil or response == "" then
+		response = "SIP/2.0 403 Forbidden"
+	end
+	local sip_head = response .. "\r\n"
 	sip_head = sip_head .. self:GenFromToCallID(false)
 	sip_head = sip_head .. "CSeq: " .. self._callin_invite_cseq .. " INVITE\r\n"
 	sip_head = sip_head .. self:GenVia(false)
@@ -748,7 +752,7 @@ function ALittle.SipCall:HandleSipInfoAtCallOutCanceling(method, status, respons
 			self:HandleResponseOKForInvite(status, content_list)
 			self._sip_step = 9
 			self:DispatchStepChanged()
-			self:StopCall("正在Cancel的时候收到200接听事件，现在立刻发送bye来挂断电话")
+			self:StopCall(nil, "正在Cancel的时候收到200接听事件，现在立刻发送bye来挂断电话")
 			return
 		end
 	end
