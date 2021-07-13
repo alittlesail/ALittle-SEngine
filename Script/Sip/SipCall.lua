@@ -117,7 +117,7 @@ function ALittle.SipCall:TalkByeImpl()
 	sip_head = sip_head .. "User-Agent: ALittle\r\n"
 	sip_head = sip_head .. "Max-Forwards: 70\r\n"
 	sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
-	self._sip_system:Send(sip_head, self._sip_ip, self._sip_port)
+	self._sip_system:Send(self._call_id, sip_head, self._sip_ip, self._sip_port)
 	self._sip_step = 10
 	self._sip_send_time = ALittle.Time_GetCurTime()
 	self._bye_count = self._bye_count + (1)
@@ -138,7 +138,7 @@ function ALittle.SipCall:HandleSipInfoAtTalk(method, status, response_list, cont
 		sip_head = sip_head .. "Call-ID: " .. call_id .. "\r\n"
 		sip_head = sip_head .. "CSeq: " .. cseq .. "\r\n"
 		sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
-		self._sip_system:Send(sip_head, self._sip_ip, self._sip_port)
+		self._sip_system:Send(self._call_id, sip_head, self._sip_ip, self._sip_port)
 		self._sip_step = 11
 		self:DispatchStepChanged()
 		return
@@ -161,7 +161,7 @@ function ALittle.SipCall:HandleSipInfoAtTalk(method, status, response_list, cont
 		sip_head = sip_head .. "Contact: <sip:" .. self._from_number .. "@" .. self._from_sip_ip .. ":" .. self._from_sip_port .. ">\r\n"
 		sip_head = sip_head .. "Content-Type: application/sdp\r\n"
 		sip_head = sip_head .. "Content-Length: " .. ALittle.String_Len(sip_body) .. "\r\n\r\n"
-		self._sip_system:Send(sip_head .. sip_body, self._sip_ip, self._sip_port)
+		self._sip_system:Send(self._call_id, sip_head .. sip_body, self._sip_ip, self._sip_port)
 		return
 	end
 	if method == "OPTIONS" then
@@ -182,7 +182,7 @@ function ALittle.SipCall:HandleSipInfoAtTalk(method, status, response_list, cont
 		sip_head = sip_head .. "Contact: <sip:" .. self._from_number .. "@" .. self._from_sip_ip .. ":" .. self._from_sip_port .. ">\r\n"
 		sip_head = sip_head .. "Content-Type: application/sdp\r\n"
 		sip_head = sip_head .. "Content-Length: " .. ALittle.String_Len(sip_body) .. "\r\n\r\n"
-		self._sip_system:Send(sip_head .. sip_body, self._sip_ip, self._sip_port)
+		self._sip_system:Send(self._call_id, sip_head .. sip_body, self._sip_ip, self._sip_port)
 		return
 	end
 	if method == "ACK" then
@@ -208,7 +208,7 @@ function ALittle.SipCall:HandleSipInfoAtTalk(method, status, response_list, cont
 			sip_head = sip_head .. "User-Agent: ALittle\r\n"
 			sip_head = sip_head .. "Max-Forwards: 70\r\n"
 			sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
-			self._sip_system:Send(sip_head, self._sip_ip, self._sip_port)
+			self._sip_system:Send(self._call_id, sip_head, self._sip_ip, self._sip_port)
 			return
 		end
 	end
@@ -241,7 +241,7 @@ function ALittle.SipCall:HandleSipInfoAtTalkBying(method, status, response_list,
 		sip_head = sip_head .. "Call-ID: " .. call_id .. "\r\n"
 		sip_head = sip_head .. "CSeq: " .. cseq .. "\r\n"
 		sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
-		self._sip_system:Send(sip_head, self._sip_ip, self._sip_port)
+		self._sip_system:Send(self._call_id, sip_head, self._sip_ip, self._sip_port)
 		self._sip_step = 11
 		self:DispatchStepChanged()
 		return
@@ -272,7 +272,7 @@ function ALittle.SipCall:SendSession(cur_time)
 	sip_head = sip_head .. "Min-SE: " .. self._session_expires .. "\r\n"
 	sip_head = sip_head .. "Content-Type: application/sdp\r\n"
 	sip_head = sip_head .. "Content-Length: " .. ALittle.String_Len(sip_body) .. "\r\n\r\n"
-	self._sip_system:Send(sip_head .. sip_body, self._sip_ip, self._sip_port)
+	self._sip_system:Send(self._call_id, sip_head .. sip_body, self._sip_ip, self._sip_port)
 end
 
 function ALittle.SipCall:UpdateFailedReason(status, content_list)
@@ -318,7 +318,7 @@ function ALittle.SipCall:HandleSipInfoCreateCallInInvite(method, status, respons
 		sip_head = sip_head .. self:GenVia(false)
 		sip_head = sip_head .. "Contact: <sip:" .. self._to_number .. "@" .. self._to_sip_ip .. ":" .. self._to_sip_port .. ">\r\n"
 		sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
-		self._sip_system:Send(sip_head, self._sip_ip, self._sip_port)
+		self._sip_system:Send(self._call_id, sip_head, self._sip_ip, self._sip_port)
 	end
 	self._sip_step = 5
 	self:DispatchStepChanged()
@@ -358,7 +358,7 @@ function ALittle.SipCall:CallInRinging()
 		sip_head = sip_head .. "Contact: <sip:" .. self._to_number .. "@" .. self._to_sip_ip .. ":" .. self._to_sip_port .. ">\r\n"
 		sip_head = sip_head .. "Content-Type: application/sdp\r\n"
 		sip_head = sip_head .. "Content-Length: " .. ALittle.String_Len(sip_body) .. "\r\n\r\n"
-		self._sip_system:Send(sip_head .. sip_body, self._sip_ip, self._sip_port)
+		self._sip_system:Send(self._call_id, sip_head .. sip_body, self._sip_ip, self._sip_port)
 		self._sip_step = 6
 		self:DispatchStepChanged()
 	end
@@ -375,7 +375,7 @@ function ALittle.SipCall:HandleSipInfoAtCallInInvite(method, status, response_li
 		sip_head = sip_head .. "Max-Forwards: 70\r\n"
 		sip_head = sip_head .. "Content-Type: application/sdp\r\n"
 		sip_head = sip_head .. "Content-Length: " .. ALittle.String_Len(sip_body) .. "\r\n\r\n"
-		self._sip_system:Send(sip_head .. sip_body, self._sip_ip, self._sip_port)
+		self._sip_system:Send(self._call_id, sip_head .. sip_body, self._sip_ip, self._sip_port)
 		self._sip_step = 11
 		self:DispatchStepChanged()
 		return
@@ -404,7 +404,7 @@ function ALittle.SipCall:CallInForbiddenImpl(response, reason)
 		sip_head = sip_head .. "Reason: " .. reason .. "\r\n"
 	end
 	sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
-	self._sip_system:Send(sip_head, self._sip_ip, self._sip_port)
+	self._sip_system:Send(self._call_id, sip_head, self._sip_ip, self._sip_port)
 	self._sip_step = 8
 	self._sip_send_time = ALittle.Time_GetCurTime()
 	self._forbidden_count = self._forbidden_count + (1)
@@ -431,7 +431,7 @@ function ALittle.SipCall:CallInOKImpl()
 	sip_head = sip_head .. "Contact: <sip:" .. self._to_number .. "@" .. self._to_sip_ip .. ":" .. self._to_sip_port .. ">\r\n"
 	sip_head = sip_head .. "Content-Type: application/sdp\r\n"
 	sip_head = sip_head .. "Content-Length: " .. ALittle.String_Len(sip_body) .. "\r\n\r\n"
-	self._sip_system:Send(sip_head .. sip_body, self._sip_ip, self._sip_port)
+	self._sip_system:Send(self._call_id, sip_head .. sip_body, self._sip_ip, self._sip_port)
 	self._sip_step = 7
 	self._sip_send_time = ALittle.Time_GetCurTime()
 	self._ok_count = self._ok_count + (1)
@@ -463,7 +463,7 @@ function ALittle.SipCall:HandleSipInfoAtCallInForbidden(method, status, response
 		sip_head = sip_head .. "Max-Forwards: 70\r\n"
 		sip_head = sip_head .. "Content-Type: application/sdp\r\n"
 		sip_head = sip_head .. "Content-Length: " .. ALittle.String_Len(sip_body) .. "\r\n\r\n"
-		self._sip_system:Send(sip_head .. sip_body, self._sip_ip, self._sip_port)
+		self._sip_system:Send(self._call_id, sip_head .. sip_body, self._sip_ip, self._sip_port)
 		self._sip_step = 11
 		self:DispatchStepChanged()
 		return
@@ -481,7 +481,7 @@ function ALittle.SipCall:HandleSipInfoAtCallInForbidden(method, status, response
 		sip_head = sip_head .. "Call-ID: " .. call_id .. "\r\n"
 		sip_head = sip_head .. "CSeq: " .. cseq .. "\r\n"
 		sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
-		self._sip_system:Send(sip_head, self._sip_ip, self._sip_port)
+		self._sip_system:Send(self._call_id, sip_head, self._sip_ip, self._sip_port)
 		self._sip_step = 11
 		self:DispatchStepChanged()
 	end
@@ -519,7 +519,7 @@ function ALittle.SipCall:CallOutInviteImpl(start_time)
 	sip_head = sip_head .. "User-Agent: ALittle\r\n"
 	sip_head = sip_head .. "Content-Type: application/sdp\r\n"
 	sip_head = sip_head .. "Content-Length: " .. ALittle.String_Len(sip_body) .. "\r\n\r\n"
-	self._sip_system:Send(sip_head .. sip_body, self._sip_ip, self._sip_port)
+	self._sip_system:Send(self._call_id, sip_head .. sip_body, self._sip_ip, self._sip_port)
 	self._sip_step = 0
 	self._sip_send_time = ALittle.Time_GetCurTime()
 	self._invite_count = self._invite_count + (1)
@@ -543,7 +543,7 @@ function ALittle.SipCall:CallOutCancel()
 	sip_head = sip_head .. "User-Agent: ALittle\r\n"
 	sip_head = sip_head .. "Max-Forwards: 70\r\n"
 	sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
-	self._sip_system:Send(sip_head, self._sip_ip, self._sip_port)
+	self._sip_system:Send(self._call_id, sip_head, self._sip_ip, self._sip_port)
 end
 
 function ALittle.SipCall:CheckRequire100rel(content_list)
@@ -564,7 +564,7 @@ function ALittle.SipCall:CheckRequire100rel(content_list)
 	sip_head = sip_head .. "User-Agent: ALittle\r\n"
 	sip_head = sip_head .. "Max-Forwards: 70\r\n"
 	sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
-	self._sip_system:Send(sip_head, self._sip_ip, self._sip_port)
+	self._sip_system:Send(self._call_id, sip_head, self._sip_ip, self._sip_port)
 end
 
 function ALittle.SipCall:HandleSipInfoAtCallOutInvite(method, status, response_list, content_list)
@@ -625,7 +625,7 @@ function ALittle.SipCall:HandleSipInfoAtCallOutTrying(method, status, response_l
 			sip_head = sip_head .. "User-Agent: ALittle\r\n"
 			sip_head = sip_head .. "Max-Forwards: 70\r\n"
 			sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
-			self._sip_system:Send(sip_head, self._sip_ip, self._sip_port)
+			self._sip_system:Send(self._call_id, sip_head, self._sip_ip, self._sip_port)
 			self._callout_auth_nonce, self._callout_auth_realm = ALittle.SipCall.GetNonceRealmFromUDP(content_list, "PROXY-AUTHENTICATE")
 			self._to_tag = ""
 			self._via_branch = "z9hG4bK-" .. ALittle.String_Md5(ALittle.String_GenerateID("via_branch"))
@@ -642,7 +642,7 @@ function ALittle.SipCall:HandleSipInfoAtCallOutTrying(method, status, response_l
 			sip_head = sip_head .. "Call-ID: " .. call_id .. "\r\n"
 			sip_head = sip_head .. "CSeq: " .. cseq .. " ACK\r\n"
 			sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
-			self._sip_system:Send(sip_head, self._sip_ip, self._sip_port)
+			self._sip_system:Send(self._call_id, sip_head, self._sip_ip, self._sip_port)
 		end
 		return
 	end
@@ -670,7 +670,7 @@ function ALittle.SipCall:HandleSipInfoAtCallOutRinging(method, status, response_
 		sip_head = sip_head .. "User-Agent: ALittle\r\n"
 		sip_head = sip_head .. "Max-Forwards: 70\r\n"
 		sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
-		self._sip_system:Send(sip_head, self._sip_ip, self._sip_port)
+		self._sip_system:Send(self._call_id, sip_head, self._sip_ip, self._sip_port)
 		local cseq_number, cseq_method = ALittle.SipCall.GetCseqFromUDP(content_list)
 		if status == "500" and cseq_method == "PRACK" then
 			return
@@ -716,7 +716,7 @@ function ALittle.SipCall:HandleSipInfoAtCallOutRinging(method, status, response_
 		sip_head = sip_head .. "User-Agent: ALittle\r\n"
 		sip_head = sip_head .. "Max-Forwards: 70\r\n"
 		sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
-		self._sip_system:Send(sip_head, self._sip_ip, self._sip_port)
+		self._sip_system:Send(self._call_id, sip_head, self._sip_ip, self._sip_port)
 		return
 	end
 end
@@ -741,7 +741,7 @@ function ALittle.SipCall:HandleSipInfoAtCallOutCanceling(method, status, respons
 			sip_head = sip_head .. "User-Agent: ALittle\r\n"
 			sip_head = sip_head .. "Max-Forwards: 70\r\n"
 			sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
-			self._sip_system:Send(sip_head, self._sip_ip, self._sip_port)
+			self._sip_system:Send(self._call_id, sip_head, self._sip_ip, self._sip_port)
 			self._sip_step = 11
 			self:DispatchStepChanged()
 			return
@@ -808,7 +808,7 @@ function ALittle.SipCall:HandleResponseOKForInvite(status, content_list)
 	sip_head = sip_head .. "User-Agent: ALittle\r\n"
 	sip_head = sip_head .. "Max-Forwards: 70\r\n"
 	sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
-	self._sip_system:Send(sip_head, self._sip_ip, self._sip_port)
+	self._sip_system:Send(self._call_id, sip_head, self._sip_ip, self._sip_port)
 end
 
 function ALittle.SipCall:HandleCallSipUpdate(method, status, response_list, content_list)
@@ -845,7 +845,7 @@ function ALittle.SipCall:HandleCallSipUpdate(method, status, response_list, cont
 		sip_head = sip_head .. "Content-Type: application/sdp\r\n"
 	end
 	sip_head = sip_head .. "Content-Length: " .. ALittle.String_Len(sip_body) .. "\r\n\r\n"
-	self._sip_system:Send(sip_head .. sip_body, self._sip_ip, self._sip_port)
+	self._sip_system:Send(self._call_id, sip_head .. sip_body, self._sip_ip, self._sip_port)
 end
 
 function ALittle.SipCall:HandleCallSipReInvite(method, status, response_list, content_list)
@@ -883,7 +883,7 @@ function ALittle.SipCall:HandleCallSipReInvite(method, status, response_list, co
 	sip_body = self:GenSDP()
 	sip_head = sip_head .. "Content-Type: application/sdp\r\n"
 	sip_head = sip_head .. "Content-Length: " .. ALittle.String_Len(sip_body) .. "\r\n\r\n"
-	self._sip_system:Send(sip_head .. sip_body, self._sip_ip, self._sip_port)
+	self._sip_system:Send(self._call_id, sip_head .. sip_body, self._sip_ip, self._sip_port)
 end
 
 function ALittle.SipCall:GenProxyAuth(method, use_to_number)

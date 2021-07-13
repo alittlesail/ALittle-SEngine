@@ -75,7 +75,18 @@ public class SipSystem : EventDispatcher
     private int _account_call_count = 0;
     private Map<string, SipCallLimit> _account_call_limit = new Map<string, SipCallLimit>();
 
-    public fun Setup(SipRegister sip_register, string self_ip, int self_port, string remote_ip, int remote_port, string remote_domain)
+    // 日志
+    private lua.sqlite3object _sqlite3_log;
+    private lua.sqlite3stmt _sqlite3_insert_stmt;
+
+    private string _sqlit3_path;
+    private bool _sqlite3_transaction = false;
+    private int _sqlite3_time = 0;
+    private int _sqlite3_commit_timer;
+
+    public fun Setup(SipRegister sip_register
+                    , string self_ip, int self_port, string remote_ip, int remote_port, string remote_domain
+                    , string sqlit3_path, string sqlite3_pre_name)
     {
         this._sip_register = sip_register;
         this._self_ip = self_ip;
@@ -83,6 +94,12 @@ public class SipSystem : EventDispatcher
         this._remote_ip = remote_ip;
         this._remote_port = remote_port;
         this._remote_domain = remote_domain;
+        this._sqlit3_path = sqlit3_path;
+
+        // 创建文件夹
+        ALittle.File_MakeDeepDir(this._sqlit3_path);
+        if (sqlite3_pre_name == null) sqlite3_pre_name = "";
+        this._sqlit3_path = ALittle.File_PathEndWithSplit(this._sqlit3_path)..sqlite3_pre_name;
 
         // 启动SIP服务器
         __CPPAPI_ServerSchedule.CreateUdpServer(this._self_ip, this._self_port);
@@ -99,6 +116,9 @@ public class SipSystem : EventDispatcher
         
         // 每秒检查会话
         this._loop_session = A_LoopSystem.AddTimer(1000, bind(this.HandleUpdateSession, this), -1, 6000);
+
+        // 每条提交数据库
+        this._sqlite3_commit_timer = A_LoopSystem.AddTimer(1000, bind(this.HandleSqlilte3Commit, this), -1, 1000);
     }
 
     public fun SetPreAccount(string pre_account) { this._pre_account = pre_account; }
@@ -113,8 +133,59 @@ public class SipSystem : EventDispatcher
         this._account_call_limit = new Map<string, SipCallLimit>();
     }
 
+    public fun GetSipRegisterStatistics() : string
+    {
+
+        if (this._sip_register == null) return "";
+        return this._sip_register.GetSipRegisterStatistics();    }
+
+    public fun GetSipCallStatistics() : string
+    {
+        var call_out_count = 0;
+        var call_in_count = 0;
+
+        var step_map = new Map<int, int>();
+
+        for (var call_id, call_info in this._call_map)
+        {
+            if (call_info._out_or_in)
+            	call_out_count += 1;
+            else
+                call_in_count += 1;
+            
+            var count = step_map[call_info._sip_step];
+            if (count == null)
+                step_map[call_info._sip_step] = 1;
+            else
+                step_map[call_info._sip_step] = count + 1;
+        }
+
+        var log = "呼出数量:"..call_out_count.." 呼入数量:"..call_in_count.." 呼叫状态:\n";
+        for (var step, count in step_map)
+        {
+            if (step == SipStep.OUT_INVITE) log = log.."正在发起呼叫(OUT_INVITE):"..count;
+            elseif (step == SipStep.OUT_TRYING) log = log.."收到对方的trying(OUT_TRYING):"..count;
+            elseif (step == SipStep.OUT_RINGING) log = log.."收到对方的响铃(OUT_RINGING):"..count;
+            elseif (step == SipStep.OUT_CANCELING) log = log.."对方还未接通前，正在停止呼叫(OUT_CANCELING):"..count;
+
+            elseif (step == SipStep.IN_INVITE) log = log.."收到对方的INVITE(IN_INVITE):"..count;
+            elseif (step == SipStep.IN_TRYING) log = log.."我方发送trying(IN_TRYING):"..count;
+            elseif (step == SipStep.IN_RINGING) log = log.."我方发送ringing(IN_RINGING):"..count;
+            elseif (step == SipStep.IN_OK) log = log.."我方发送接听(IN_OK):"..count;
+            elseif (step == SipStep.IN_FORBIDDEN) log = log.."我方无法接听，发送forbidden(IN_FORBIDDEN):"..count;
+            elseif (step == SipStep.TALK) log = log.."通话中(TALK):"..count;
+            elseif (step == SipStep.TALK_BYING) log = log.."主动挂断(TALK_BYING):"..count;
+            elseif (step == SipStep.TALK_END) log = log.."电话结束(TALK_END):"..count;
+        }
+
+        return log;
+    }
+
     public fun Shutdown()
     {
+        // 关闭日志
+        this.CloseCurrentSqlite3Log();
+
         // 移除监听
         A_UdpSystem.RemoveEventListener(this, this.HandleSipInfo);
 
@@ -129,6 +200,12 @@ public class SipSystem : EventDispatcher
         {
             A_LoopSystem.RemoveTimer(this._loop_session);
             this._loop_session = null;
+        }
+
+        if (this._sqlite3_commit_timer != null)
+        {
+            A_LoopSystem.RemoveTimer(this._sqlite3_commit_timer);
+            this._sqlite3_commit_timer = null;
         }
     }
 
@@ -197,7 +274,7 @@ public class SipSystem : EventDispatcher
         this._session_weak_map[call] = true;
     }
 
-    protected fun Send(string message, string sip_ip, int sip_port)
+    protected fun Send(string call_id, string message, string sip_ip, int sip_port)
     {
         if (sip_ip == null || sip_ip == "" || sip_port == 0 || sip_port == null)
         {
@@ -206,8 +283,7 @@ public class SipSystem : EventDispatcher
         }
 
         __CPPAPI_ServerSchedule.SendUdpMessage(this._self_ip, this._self_port, sip_ip, sip_port, message);
-        Log("SEND==>");
-        Log(message);
+        this.Sqlite3Log(call_id, message, this._self_ip, this._self_port, sip_ip, sip_port);
     }
 
     protected fun ReleaseCall(SipCall call_info)
@@ -221,6 +297,100 @@ public class SipSystem : EventDispatcher
         var event = new SipCallReleaseEvent();
         event.call_info = call_info;
         this.DispatchEvent(event);
+    }
+
+    private fun Sqlite3Log(string call_id, string message, string from_ip, int from_port, string to_ip, int to_port)
+    {
+        var sqlite = this.OpenCurrenSqlite3Log();
+        if (sqlite == null)
+        {
+            if (this._self_ip == to_ip && this._self_port == to_port)
+                Log("RECEIVE <===", from_ip..":"..from_port);
+            else
+            	Log("SEND ===>", to_ip..":"..to_port);
+            Log(message);
+            return;
+        }
+
+        if (!this._sqlite3_transaction)
+        {
+            sqlite.exec("BEGIN;");
+            this._sqlite3_transaction = true;
+        }
+
+        this._sqlite3_insert_stmt.bind_values(call_id, from_ip..":"..from_port, to_ip..":"..to_port, message, Time_GetCurTime());
+        this._sqlite3_insert_stmt.step();
+        this._sqlite3_insert_stmt.reset();
+    }
+
+    private fun HandleSqlilte3Commit()
+    {
+        if (this._sqlite3_log == null) return;
+
+        if (!this._sqlite3_transaction) return;
+        this._sqlite3_transaction = false;
+
+        this._sqlite3_log.exec("COMMIT;");
+    }
+
+    private fun CloseCurrentSqlite3Log()
+    {
+        if (this._sqlite3_log != null)
+        {
+            if (this._sqlite3_transaction)
+                this._sqlite3_log.exec("COMMIT;");
+            this._sqlite3_log.close();
+        }
+
+        this._sqlite3_time = 0;
+        this._sqlite3_log = null;
+        this._sqlite3_transaction = false;
+    }
+
+    private fun OpenCurrenSqlite3Log() : lua.sqlite3object
+    {
+        var cur_begin_time = Time_GetCurBeginTime();
+        if (this._sqlite3_time != cur_begin_time)
+            this.CloseCurrentSqlite3Log();
+
+        if (this._sqlite3_log != null) return this._sqlite3_log;
+
+        var date = Time_GetCurYMD(cur_begin_time);
+        var path = this._sqlit3_path..date..".db3";
+        this._sqlite3_log = lua.sqlite3.open(path);
+        if (this._sqlite3_log == null)
+        {
+            Error("sqlite3 open failed:"..path);
+            return null;
+        }
+
+        // 建表
+        {
+            var sql = "CREATE TABLE IF NOT EXISTS [SipLog] (";
+            sql = sql.."[c_call_id] [nvarchar](255) NOT NULL default '',";
+            sql = sql.."[c_from] [nvarchar](255) NOT NULL default '',";
+            sql = sql.."[c_to] [nvarchar](255) NOT NULL default '',";
+            sql = sql.."[c_message] [text] NOT NULL default '',";
+            sql = sql.."[c_create_time] [int] NOT NULL default 0";
+            sql = sql..")";
+            this._sqlite3_log.exec(sql);
+        }
+
+        // 插入预备
+        {
+            var sql = "INSERT INTO SipLog (c_call_id, c_from, c_to, c_message, c_create_time) VALUES (?, ?, ?, ?, ?);";
+            this._sqlite3_insert_stmt = this._sqlite3_log.prepare(sql);
+            if (this._sqlite3_insert_stmt == null)
+            {
+                Error("insert_stmt prepare failed:"..sql);
+                this._sqlite3_log.close();
+                this._sqlite3_log = null;
+                return null;
+            }
+        }
+
+        this._sqlite3_time = cur_begin_time;
+        return this._sqlite3_log;
     }
 
     //==============================================================================================
@@ -377,15 +547,19 @@ public class SipSystem : EventDispatcher
         // 拦截心跳包
         if (message_len == 2 && event.message == "\r\n") return;
 
-        Log("RECEIVE <===", event.remote_ip..":"..event.remote_port, message_len);
-        Log(event.message);
-
         // 拆分sip协议
         var content_list = String_Split(event.message, "\r\n");
     
         // 获取call_id
         var call_id = SipCall.GetKeyValueFromUDP(content_list, "CALL-ID");
-        if (call_id == null || call_id == "") return;
+        if (call_id == null || call_id == "")
+        {
+            Log("can't find CALL-ID in remote_ip:"..event.remote_ip.." remote_port:"..event.remote_port.."\n message:"..event.message);
+            return;
+        }
+
+        // 打印日志
+        this.Sqlite3Log(call_id, event.message, event.remote_ip, event.remote_port, this._self_ip, this._self_port);
 
         // 从第一行拆分出命令
         if (content_list[1] == null) return;
@@ -428,7 +602,7 @@ public class SipSystem : EventDispatcher
                 var auth = SipCall.GenAuth(nonce, realm, auth_account, auth_password, "REGISTER", uri);
 
                 var via_branch = String_Md5(String_GenerateID("via_branch"));
-                this.Send(this.GenRegister(from_number, call_id, via_branch, from_tag, cseq_number + 1, auth), event.remote_ip, event.remote_port);
+                this.Send(call_id, this.GenRegister(from_number, call_id, via_branch, from_tag, cseq_number + 1, auth), event.remote_ip, event.remote_port);
             }
             elseif (status == "200")
             {
@@ -517,7 +691,7 @@ public class SipSystem : EventDispatcher
             sip_head = sip_head.."WWW-Authenticate: Digest realm=\"ALittle\", nonce=\""..String_Md5(String_GenerateID("nonce")).."\", stale=FALSE, algorithm=MD5\r\n";
             sip_head = sip_head.."Server: ALittle\r\n";
             sip_head = sip_head.."Content-Length: 0\r\n\r\n";
-            this.Send(sip_head, remote_ip, remote_port);
+            this.Send(call_id, sip_head, remote_ip, remote_port);
 
             return;
         }
@@ -547,7 +721,7 @@ public class SipSystem : EventDispatcher
                 sip_head = sip_head.."Allow: "..allow.."\r\n";
                 sip_head = sip_head.."Server: ALittle\r\n";
                 sip_head = sip_head.."Content-Length: 0\r\n\r\n";
-                this.Send(sip_head, remote_ip, remote_port);
+                this.Send(call_id, sip_head, remote_ip, remote_port);
                 return;
             }
         }
@@ -572,7 +746,7 @@ public class SipSystem : EventDispatcher
 			sip_head = sip_head.."Call-ID: "..call_id.."\r\n";
 			sip_head = sip_head.."CSeq: "..cseq.."\r\n";
 			sip_head = sip_head.."Content-Length: 0\r\n\r\n";
-            this.Send(sip_head, remote_ip, remote_port);
+            this.Send(call_id, sip_head, remote_ip, remote_port);
         }
     }
 
@@ -585,7 +759,7 @@ public class SipSystem : EventDispatcher
         var via_branch = String_Md5(String_GenerateID("via_branch"));
         var from_tag = String_Md5(String_GenerateID("from_tag"));
 
-        this.Send(this.GenRegister(account, call_id, via_branch, from_tag, 1, ""), this._remote_ip, this._remote_port);
+        this.Send(call_id, this.GenRegister(account, call_id, via_branch, from_tag, 1, ""), this._remote_ip, this._remote_port);
     }
 
     protected fun GenRegister(string account, string call_id, string via_branch, string from_tag, int cseq, string auth) : string

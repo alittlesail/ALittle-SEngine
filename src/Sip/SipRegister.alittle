@@ -61,6 +61,32 @@ public class SipRegister
         }
     }
 
+    // 获取注册统计
+    public fun GetSipRegisterStatistics() : string
+    {
+        // 账号总数
+        var account_count = 0;
+        for (var account, info in this._register_map)
+            account_count += 1;
+
+        // 获取当前时间
+        var cur_time = Time_GetCurTime();
+
+        // 注册总数
+        var register_count = 0;
+        var timeout_count = 0;
+        for (var account, info in this._check_map)
+        {
+            register_count += 1;
+            if (info.check_register_time < cur_time)
+                timeout_count += 1;
+        }
+
+        var log = "账号总数:"..account_count.." 等待下次注册:"..this._register_patch_count.." 正在注册:"..register_count.." 注册超时:"..timeout_count;
+
+        return log;
+    }
+
     // 获取超时时间
     protected fun GetExpires() : int { return this._expires; }
 

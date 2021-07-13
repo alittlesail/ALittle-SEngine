@@ -17,7 +17,7 @@ public enum SipStep
     IN_FORBIDDEN	= 8;	// 我方无法接听，发送forbidden
 
     // 通话
-    TALK			= 9;	// 处理通过中
+    TALK			= 9;	// 通话中
     TALK_BYING	  = 10;   // 主动挂断
     TALK_END		= 11;   // 整通电话结束
 }
@@ -201,7 +201,7 @@ public class SipCall
 		sip_head = sip_head.."User-Agent: ALittle\r\n";
 		sip_head = sip_head.."Max-Forwards: 70\r\n";
 		sip_head = sip_head.."Content-Length: 0\r\n\r\n";
-        this._sip_system.Send(sip_head, this._sip_ip, this._sip_port);
+        this._sip_system.Send(this._call_id, sip_head, this._sip_ip, this._sip_port);
 
         this._sip_step = SipStep.TALK_BYING;
         this._sip_send_time = Time_GetCurTime();
@@ -226,7 +226,7 @@ public class SipCall
 			sip_head = sip_head.."Call-ID: "..call_id.."\r\n";
 			sip_head = sip_head.."CSeq: "..cseq.."\r\n";
 			sip_head = sip_head.."Content-Length: 0\r\n\r\n";
-            this._sip_system.Send(sip_head, this._sip_ip, this._sip_port);
+            this._sip_system.Send(this._call_id, sip_head, this._sip_ip, this._sip_port);
 
             this._sip_step = SipStep.TALK_END;
             this.DispatchStepChanged();
@@ -254,7 +254,7 @@ public class SipCall
 			sip_head = sip_head.."Contact: <sip:"..this._from_number.."@"..this._from_sip_ip..":"..this._from_sip_port..">\r\n";
 			sip_head = sip_head.."Content-Type: application/sdp\r\n";
 			sip_head = sip_head.."Content-Length: "..String_Len(sip_body).."\r\n\r\n";
-            this._sip_system.Send(sip_head..sip_body, this._sip_ip, this._sip_port);
+            this._sip_system.Send(this._call_id, sip_head..sip_body, this._sip_ip, this._sip_port);
 
             return;
         }
@@ -280,7 +280,7 @@ public class SipCall
 			sip_head = sip_head.."Contact: <sip:"..this._from_number.."@"..this._from_sip_ip..":"..this._from_sip_port..">\r\n";
 			sip_head = sip_head.."Content-Type: application/sdp\r\n";
 			sip_head = sip_head.."Content-Length: "..String_Len(sip_body).."\r\n\r\n";
-            this._sip_system.Send(sip_head..sip_body, this._sip_ip, this._sip_port);
+            this._sip_system.Send(this._call_id, sip_head..sip_body, this._sip_ip, this._sip_port);
 
             return;
         }
@@ -314,7 +314,7 @@ public class SipCall
 				sip_head = sip_head.."User-Agent: ALittle\r\n";
 				sip_head = sip_head.."Max-Forwards: 70\r\n";
 				sip_head = sip_head.."Content-Length: 0\r\n\r\n";
-                this._sip_system.Send(sip_head, this._sip_ip, this._sip_port);
+                this._sip_system.Send(this._call_id, sip_head, this._sip_ip, this._sip_port);
                 return;
             }
         }
@@ -356,7 +356,7 @@ public class SipCall
 			sip_head = sip_head.."Call-ID: "..call_id.."\r\n";
 			sip_head = sip_head.."CSeq: "..cseq.."\r\n";
 			sip_head = sip_head.."Content-Length: 0\r\n\r\n";
-            this._sip_system.Send(sip_head, this._sip_ip, this._sip_port);
+            this._sip_system.Send(this._call_id, sip_head, this._sip_ip, this._sip_port);
 
             this._sip_step = SipStep.TALK_END;
             this.DispatchStepChanged();
@@ -392,7 +392,7 @@ public class SipCall
 		sip_head = sip_head.."Min-SE: "..this._session_expires.."\r\n";
 		sip_head = sip_head.."Content-Type: application/sdp\r\n";
 		sip_head = sip_head.."Content-Length: "..String_Len(sip_body).."\r\n\r\n";
-        this._sip_system.Send(sip_head..sip_body, this._sip_ip, this._sip_port);
+        this._sip_system.Send(this._call_id, sip_head..sip_body, this._sip_ip, this._sip_port);
     }
 
     // 更新错误原因
@@ -455,7 +455,7 @@ public class SipCall
             sip_head = sip_head..this.GenVia(false);
             sip_head = sip_head.."Contact: <sip:"..this._to_number.."@"..this._to_sip_ip..":"..this._to_sip_port..">\r\n";
             sip_head = sip_head.."Content-Length: 0\r\n\r\n";
-            this._sip_system.Send(sip_head, this._sip_ip, this._sip_port);
+            this._sip_system.Send(this._call_id, sip_head, this._sip_ip, this._sip_port);
         }
 
         // 设置为trying状态
@@ -510,7 +510,7 @@ public class SipCall
             sip_head = sip_head.."Contact: <sip:"..this._to_number.."@"..this._to_sip_ip..":"..this._to_sip_port..">\r\n";
             sip_head = sip_head.."Content-Type: application/sdp\r\n";
             sip_head = sip_head.."Content-Length: "..String_Len(sip_body).."\r\n\r\n";
-            this._sip_system.Send(sip_head..sip_body, this._sip_ip, this._sip_port);
+            this._sip_system.Send(this._call_id, sip_head..sip_body, this._sip_ip, this._sip_port);
 
             // 设置为ringing状态
             this._sip_step = SipStep.IN_RINGING;
@@ -532,7 +532,7 @@ public class SipCall
 			sip_head = sip_head.."Max-Forwards: 70\r\n";
 			sip_head = sip_head.."Content-Type: application/sdp\r\n";
 			sip_head = sip_head.."Content-Length: "..String_Len(sip_body).."\r\n\r\n";
-            this._sip_system.Send(sip_head..sip_body, this._sip_ip, this._sip_port);
+            this._sip_system.Send(this._call_id, sip_head..sip_body, this._sip_ip, this._sip_port);
             this._sip_step = SipStep.TALK_END;
             this.DispatchStepChanged();
             return;
@@ -557,7 +557,7 @@ public class SipCall
 		sip_head = sip_head.."Max-Forwards: 70\r\n";
         if (reason != null) sip_head = sip_head.."Reason: "..reason.."\r\n";
 		sip_head = sip_head.."Content-Length: 0\r\n\r\n";
-        this._sip_system.Send(sip_head, this._sip_ip, this._sip_port);
+        this._sip_system.Send(this._call_id, sip_head, this._sip_ip, this._sip_port);
 
         this._sip_step = SipStep.IN_FORBIDDEN;
         this._sip_send_time = Time_GetCurTime();
@@ -586,7 +586,7 @@ public class SipCall
 		sip_head = sip_head.."Contact: <sip:"..this._to_number.."@"..this._to_sip_ip..":"..this._to_sip_port..">\r\n";
 		sip_head = sip_head.."Content-Type: application/sdp\r\n";
 		sip_head = sip_head.."Content-Length: "..String_Len(sip_body).."\r\n\r\n";
-        this._sip_system.Send(sip_head..sip_body, this._sip_ip, this._sip_port);
+        this._sip_system.Send(this._call_id, sip_head..sip_body, this._sip_ip, this._sip_port);
 
         this._sip_step = SipStep.IN_OK;
         this._sip_send_time = Time_GetCurTime();
@@ -626,7 +626,7 @@ public class SipCall
 			sip_head = sip_head.."Max-Forwards: 70\r\n";
 			sip_head = sip_head.."Content-Type: application/sdp\r\n";
 			sip_head = sip_head.."Content-Length: "..String_Len(sip_body).."\r\n\r\n";
-            this._sip_system.Send(sip_head..sip_body, this._sip_ip, this._sip_port);
+            this._sip_system.Send(this._call_id, sip_head..sip_body, this._sip_ip, this._sip_port);
             this._sip_step = SipStep.TALK_END;
             this.DispatchStepChanged();
             return;
@@ -647,7 +647,7 @@ public class SipCall
 			sip_head = sip_head.."Call-ID: "..call_id.."\r\n";
 			sip_head = sip_head.."CSeq: "..cseq.."\r\n";
 			sip_head = sip_head.."Content-Length: 0\r\n\r\n";
-            this._sip_system.Send(sip_head, this._sip_ip, this._sip_port);
+            this._sip_system.Send(this._call_id, sip_head, this._sip_ip, this._sip_port);
             this._sip_step = SipStep.TALK_END;
             this.DispatchStepChanged();
         }
@@ -687,7 +687,7 @@ public class SipCall
 		sip_head = sip_head.."User-Agent: ALittle\r\n";
 		sip_head = sip_head.."Content-Type: application/sdp\r\n";
 		sip_head = sip_head.."Content-Length: "..String_Len(sip_body).."\r\n\r\n";
-        this._sip_system.Send(sip_head..sip_body, this._sip_ip, this._sip_port);
+        this._sip_system.Send(this._call_id, sip_head..sip_body, this._sip_ip, this._sip_port);
 
         this._sip_step = SipStep.OUT_INVITE;
         this._sip_send_time = Time_GetCurTime();
@@ -715,7 +715,7 @@ public class SipCall
 		sip_head = sip_head.."User-Agent: ALittle\r\n";
 		sip_head = sip_head.."Max-Forwards: 70\r\n";
 		sip_head = sip_head.."Content-Length: 0\r\n\r\n";
-        this._sip_system.Send(sip_head, this._sip_ip, this._sip_port);
+        this._sip_system.Send(this._call_id, sip_head, this._sip_ip, this._sip_port);
     }
 
     private fun CheckRequire100rel(List<string> content_list)
@@ -737,7 +737,7 @@ public class SipCall
         sip_head = sip_head.."User-Agent: ALittle\r\n";
         sip_head = sip_head.."Max-Forwards: 70\r\n";
         sip_head = sip_head.."Content-Length: 0\r\n\r\n";
-        this._sip_system.Send(sip_head, this._sip_ip, this._sip_port);
+        this._sip_system.Send(this._call_id, sip_head, this._sip_ip, this._sip_port);
     }
 
     public fun HandleSipInfoAtCallOutInvite(string method, string status, List<string> response_list, List<string> content_list)
@@ -806,7 +806,7 @@ public class SipCall
 				sip_head = sip_head.."User-Agent: ALittle\r\n";
 				sip_head = sip_head.."Max-Forwards: 70\r\n";
 				sip_head = sip_head.."Content-Length: 0\r\n\r\n";
-                this._sip_system.Send(sip_head, this._sip_ip, this._sip_port);
+                this._sip_system.Send(this._call_id, sip_head, this._sip_ip, this._sip_port);
 
                 this._callout_auth_nonce, this._callout_auth_realm = SipCall.GetNonceRealmFromUDP(content_list, "PROXY-AUTHENTICATE");
                 this._to_tag = "";
@@ -827,7 +827,7 @@ public class SipCall
 				sip_head = sip_head.."Call-ID: "..call_id.."\r\n";
 				sip_head = sip_head.."CSeq: "..cseq.." ACK\r\n";
 				sip_head = sip_head.."Content-Length: 0\r\n\r\n";
-                this._sip_system.Send(sip_head, this._sip_ip, this._sip_port);
+                this._sip_system.Send(this._call_id, sip_head, this._sip_ip, this._sip_port);
             }
 
             return;
@@ -859,7 +859,7 @@ public class SipCall
 			sip_head = sip_head.."User-Agent: ALittle\r\n";
 			sip_head = sip_head.."Max-Forwards: 70\r\n";
 			sip_head = sip_head.."Content-Length: 0\r\n\r\n";
-            this._sip_system.Send(sip_head, this._sip_ip, this._sip_port);
+            this._sip_system.Send(this._call_id, sip_head, this._sip_ip, this._sip_port);
 
             // 如果是PRACK出错了，那么就不用结束这个会话
             var cseq_number, cseq_method = SipCall.GetCseqFromUDP(content_list);
@@ -915,7 +915,7 @@ public class SipCall
 			sip_head = sip_head.."User-Agent: ALittle\r\n";
 			sip_head = sip_head.."Max-Forwards: 70\r\n";
 			sip_head = sip_head.."Content-Length: 0\r\n\r\n";
-            this._sip_system.Send(sip_head, this._sip_ip, this._sip_port);
+            this._sip_system.Send(this._call_id, sip_head, this._sip_ip, this._sip_port);
 
             return;
         }
@@ -948,7 +948,7 @@ public class SipCall
 				sip_head = sip_head.."User-Agent: ALittle\r\n";
 				sip_head = sip_head.."Max-Forwards: 70\r\n";
 				sip_head = sip_head.."Content-Length: 0\r\n\r\n";
-                this._sip_system.Send(sip_head, this._sip_ip, this._sip_port);
+                this._sip_system.Send(this._call_id, sip_head, this._sip_ip, this._sip_port);
 
                 this._sip_step = SipStep.TALK_END;
                 this.DispatchStepChanged();
@@ -1023,7 +1023,7 @@ public class SipCall
         sip_head = sip_head.."User-Agent: ALittle\r\n";
         sip_head = sip_head.."Max-Forwards: 70\r\n";
         sip_head = sip_head.."Content-Length: 0\r\n\r\n";
-        this._sip_system.Send(sip_head, this._sip_ip, this._sip_port);
+        this._sip_system.Send(this._call_id, sip_head, this._sip_ip, this._sip_port);
     }
 
     public fun HandleCallSipUpdate(string method, string status, List<string> response_list, List<string> content_list)
@@ -1067,7 +1067,7 @@ public class SipCall
         }
 
         sip_head = sip_head.."Content-Length: "..String_Len(sip_body).."\r\n\r\n";
-        this._sip_system.Send(sip_head..sip_body, this._sip_ip, this._sip_port);
+        this._sip_system.Send(this._call_id, sip_head..sip_body, this._sip_ip, this._sip_port);
     }
 
     public fun HandleCallSipReInvite(string method, string status, List<string> response_list, List<string> content_list)
@@ -1113,7 +1113,7 @@ public class SipCall
         sip_head = sip_head.."Content-Type: application/sdp\r\n";
         sip_head = sip_head.."Content-Length: "..String_Len(sip_body).."\r\n\r\n";
 
-        this._sip_system.Send(sip_head..sip_body, this._sip_ip, this._sip_port);
+        this._sip_system.Send(this._call_id, sip_head..sip_body, this._sip_ip, this._sip_port);
     }
 
     // 通用接口======================================================================================================================

@@ -61,21 +61,30 @@ function ALittle.SipSystem:Ctor()
 	___rawset(self, "_account_call_unit", 0)
 	___rawset(self, "_account_call_count", 0)
 	___rawset(self, "_account_call_limit", {})
+	___rawset(self, "_sqlite3_transaction", false)
+	___rawset(self, "_sqlite3_time", 0)
 end
 
-function ALittle.SipSystem:Setup(sip_register, self_ip, self_port, remote_ip, remote_port, remote_domain)
+function ALittle.SipSystem:Setup(sip_register, self_ip, self_port, remote_ip, remote_port, remote_domain, sqlit3_path, sqlite3_pre_name)
 	self._sip_register = sip_register
 	self._self_ip = self_ip
 	self._self_port = self_port
 	self._remote_ip = remote_ip
 	self._remote_port = remote_port
 	self._remote_domain = remote_domain
+	self._sqlit3_path = sqlit3_path
+	ALittle.File_MakeDeepDir(self._sqlit3_path)
+	if sqlite3_pre_name == nil then
+		sqlite3_pre_name = ""
+	end
+	self._sqlit3_path = ALittle.File_PathEndWithSplit(self._sqlit3_path) .. sqlite3_pre_name
 	__CPPAPI_ServerSchedule:CreateUdpServer(self._self_ip, self._self_port)
 	A_UdpSystem:AddEventListener(___all_struct[-1948184705], self, self.HandleSipInfo)
 	self._resend_weak_map = ALittle.CreateKeyWeakMap()
 	self._session_weak_map = ALittle.CreateKeyWeakMap()
 	self._loop_resend = A_LoopSystem:AddTimer(1000, Lua.Bind(self.HandleUpdateResend, self), -1, 1000)
 	self._loop_session = A_LoopSystem:AddTimer(1000, Lua.Bind(self.HandleUpdateSession, self), -1, 6000)
+	self._sqlite3_commit_timer = A_LoopSystem:AddTimer(1000, Lua.Bind(self.HandleSqlilte3Commit, self), -1, 1000)
 end
 
 function ALittle.SipSystem:SetPreAccount(pre_account)
@@ -92,7 +101,63 @@ function ALittle.SipSystem:SetAccountCallUnitCount(call_unit, call_count)
 	self._account_call_limit = {}
 end
 
+function ALittle.SipSystem:GetSipRegisterStatistics()
+	if self._sip_register == nil then
+		return ""
+	end
+	return self._sip_register:GetSipRegisterStatistics()
+end
+
+function ALittle.SipSystem:GetSipCallStatistics()
+	local call_out_count = 0
+	local call_in_count = 0
+	local step_map = {}
+	for call_id, call_info in ___pairs(self._call_map) do
+		if call_info._out_or_in then
+			call_out_count = call_out_count + (1)
+		else
+			call_in_count = call_in_count + (1)
+		end
+		local count = step_map[call_info._sip_step]
+		if count == nil then
+			step_map[call_info._sip_step] = 1
+		else
+			step_map[call_info._sip_step] = count + 1
+		end
+	end
+	local log = "呼出数量:" .. call_out_count .. " 呼入数量:" .. call_in_count .. " 呼叫状态:\n"
+	for step, count in ___pairs(step_map) do
+		if step == 0 then
+			log = log .. "正在发起呼叫(OUT_INVITE):" .. count
+		elseif step == 1 then
+			log = log .. "收到对方的trying(OUT_TRYING):" .. count
+		elseif step == 2 then
+			log = log .. "收到对方的响铃(OUT_RINGING):" .. count
+		elseif step == 3 then
+			log = log .. "对方还未接通前，正在停止呼叫(OUT_CANCELING):" .. count
+		elseif step == 4 then
+			log = log .. "收到对方的INVITE(IN_INVITE):" .. count
+		elseif step == 5 then
+			log = log .. "我方发送trying(IN_TRYING):" .. count
+		elseif step == 6 then
+			log = log .. "我方发送ringing(IN_RINGING):" .. count
+		elseif step == 7 then
+			log = log .. "我方发送接听(IN_OK):" .. count
+		elseif step == 8 then
+			log = log .. "我方无法接听，发送forbidden(IN_FORBIDDEN):" .. count
+		elseif step == 9 then
+			log = log .. "通话中(TALK):" .. count
+		elseif step == 10 then
+			log = log .. "主动挂断(TALK_BYING):" .. count
+		elseif step == 11 then
+			log = log .. "电话结束(TALK_END):" .. count
+		end
+	end
+	return log
+end
+
 function ALittle.SipSystem:Shutdown()
+	self:CloseCurrentSqlite3Log()
 	A_UdpSystem:RemoveEventListener(___all_struct[-1948184705], self, self.HandleSipInfo)
 	if self._loop_resend ~= nil then
 		A_LoopSystem:RemoveTimer(self._loop_resend)
@@ -101,6 +166,10 @@ function ALittle.SipSystem:Shutdown()
 	if self._loop_session ~= nil then
 		A_LoopSystem:RemoveTimer(self._loop_session)
 		self._loop_session = nil
+	end
+	if self._sqlite3_commit_timer ~= nil then
+		A_LoopSystem:RemoveTimer(self._sqlite3_commit_timer)
+		self._sqlite3_commit_timer = nil
 	end
 end
 
@@ -166,14 +235,13 @@ function ALittle.SipSystem:AddSession(call)
 	self._session_weak_map[call] = true
 end
 
-function ALittle.SipSystem:Send(message, sip_ip, sip_port)
+function ALittle.SipSystem:Send(call_id, message, sip_ip, sip_port)
 	if sip_ip == nil or sip_ip == "" or sip_port == 0 or sip_port == nil then
 		sip_ip = self._remote_ip
 		sip_port = self._remote_port
 	end
 	__CPPAPI_ServerSchedule:SendUdpMessage(self._self_ip, self._self_port, sip_ip, sip_port, message)
-	ALittle.Log("SEND==>")
-	ALittle.Log(message)
+	self:Sqlite3Log(call_id, message, self._self_ip, self._self_port, sip_ip, sip_port)
 end
 
 function ALittle.SipSystem:ReleaseCall(call_info)
@@ -185,6 +253,88 @@ function ALittle.SipSystem:ReleaseCall(call_info)
 	local event = {}
 	event.call_info = call_info
 	self:DispatchEvent(___all_struct[588051539], event)
+end
+
+function ALittle.SipSystem:Sqlite3Log(call_id, message, from_ip, from_port, to_ip, to_port)
+	local sqlite = self:OpenCurrenSqlite3Log()
+	if sqlite == nil then
+		if self._self_ip == to_ip and self._self_port == to_port then
+			ALittle.Log("RECEIVE <===", from_ip .. ":" .. from_port)
+		else
+			ALittle.Log("SEND ===>", to_ip .. ":" .. to_port)
+		end
+		ALittle.Log(message)
+		return
+	end
+	if not self._sqlite3_transaction then
+		sqlite:exec("BEGIN;")
+		self._sqlite3_transaction = true
+	end
+	self._sqlite3_insert_stmt:bind_values(call_id, from_ip .. ":" .. from_port, to_ip .. ":" .. to_port, message, ALittle.Time_GetCurTime())
+	self._sqlite3_insert_stmt:step()
+	self._sqlite3_insert_stmt:reset()
+end
+
+function ALittle.SipSystem:HandleSqlilte3Commit()
+	if self._sqlite3_log == nil then
+		return
+	end
+	if not self._sqlite3_transaction then
+		return
+	end
+	self._sqlite3_transaction = false
+	self._sqlite3_log:exec("COMMIT;")
+end
+
+function ALittle.SipSystem:CloseCurrentSqlite3Log()
+	if self._sqlite3_log ~= nil then
+		if self._sqlite3_transaction then
+			self._sqlite3_log:exec("COMMIT;")
+		end
+		self._sqlite3_log:close()
+	end
+	self._sqlite3_time = 0
+	self._sqlite3_log = nil
+	self._sqlite3_transaction = false
+end
+
+function ALittle.SipSystem:OpenCurrenSqlite3Log()
+	local cur_begin_time = ALittle.Time_GetCurBeginTime()
+	if self._sqlite3_time ~= cur_begin_time then
+		self:CloseCurrentSqlite3Log()
+	end
+	if self._sqlite3_log ~= nil then
+		return self._sqlite3_log
+	end
+	local date = ALittle.Time_GetCurYMD(cur_begin_time)
+	local path = self._sqlit3_path .. date .. ".db3"
+	self._sqlite3_log = sqlite3.open(path)
+	if self._sqlite3_log == nil then
+		ALittle.Error("sqlite3 open failed:" .. path)
+		return nil
+	end
+	do
+		local sql = "CREATE TABLE IF NOT EXISTS [SipLog] ("
+		sql = sql .. "[c_call_id] [nvarchar](255) NOT NULL default '',"
+		sql = sql .. "[c_from] [nvarchar](255) NOT NULL default '',"
+		sql = sql .. "[c_to] [nvarchar](255) NOT NULL default '',"
+		sql = sql .. "[c_message] [text] NOT NULL default '',"
+		sql = sql .. "[c_create_time] [int] NOT NULL default 0"
+		sql = sql .. ")"
+		self._sqlite3_log:exec(sql)
+	end
+	do
+		local sql = "INSERT INTO SipLog (c_call_id, c_from, c_to, c_message, c_create_time) VALUES (?, ?, ?, ?, ?);"
+		self._sqlite3_insert_stmt = self._sqlite3_log:prepare(sql)
+		if self._sqlite3_insert_stmt == nil then
+			ALittle.Error("insert_stmt prepare failed:" .. sql)
+			self._sqlite3_log:close()
+			self._sqlite3_log = nil
+			return nil
+		end
+	end
+	self._sqlite3_time = cur_begin_time
+	return self._sqlite3_log
 end
 
 function ALittle.SipSystem:HandleUpdateResend()
@@ -301,13 +451,13 @@ function ALittle.SipSystem:HandleSipInfo(event)
 	if message_len == 2 and event.message == "\r\n" then
 		return
 	end
-	ALittle.Log("RECEIVE <===", event.remote_ip .. ":" .. event.remote_port, message_len)
-	ALittle.Log(event.message)
 	local content_list = ALittle.String_Split(event.message, "\r\n")
 	local call_id = ALittle.SipCall.GetKeyValueFromUDP(content_list, "CALL-ID")
 	if call_id == nil or call_id == "" then
+		ALittle.Log("can't find CALL-ID in remote_ip:" .. event.remote_ip .. " remote_port:" .. event.remote_port .. "\n message:" .. event.message)
 		return
 	end
+	self:Sqlite3Log(call_id, event.message, event.remote_ip, event.remote_port, self._self_ip, self._self_port)
 	if content_list[1] == nil then
 		return
 	end
@@ -345,7 +495,7 @@ function ALittle.SipSystem:HandleSipInfo(event)
 			end
 			local auth = ALittle.SipCall.GenAuth(nonce, realm, auth_account, auth_password, "REGISTER", uri)
 			local via_branch = ALittle.String_Md5(ALittle.String_GenerateID("via_branch"))
-			self:Send(self:GenRegister(from_number, call_id, via_branch, from_tag, cseq_number + 1, auth), event.remote_ip, event.remote_port)
+			self:Send(call_id, self:GenRegister(from_number, call_id, via_branch, from_tag, cseq_number + 1, auth), event.remote_ip, event.remote_port)
 		elseif status == "200" then
 			local from_number, from_tag = ALittle.SipCall.GetFromFromUDP(content_list)
 			self._sip_register:HandleRegisterSucceed(from_number)
@@ -408,7 +558,7 @@ function ALittle.SipSystem:HandleRegister(method, status, response_list, content
 		sip_head = sip_head .. "WWW-Authenticate: Digest realm=\"ALittle\", nonce=\"" .. ALittle.String_Md5(ALittle.String_GenerateID("nonce")) .. "\", stale=FALSE, algorithm=MD5\r\n"
 		sip_head = sip_head .. "Server: ALittle\r\n"
 		sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
-		self:Send(sip_head, remote_ip, remote_port)
+		self:Send(call_id, sip_head, remote_ip, remote_port)
 		return
 	end
 	local nonce, realm, uri, response = ALittle.SipCall.GetNonceRealmFromUDP(content_list, "AUTHORIZATION")
@@ -431,7 +581,7 @@ function ALittle.SipSystem:HandleRegister(method, status, response_list, content
 			sip_head = sip_head .. "Allow: " .. allow .. "\r\n"
 			sip_head = sip_head .. "Server: ALittle\r\n"
 			sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
-			self:Send(sip_head, remote_ip, remote_port)
+			self:Send(call_id, sip_head, remote_ip, remote_port)
 			return
 		end
 	end
@@ -451,7 +601,7 @@ function ALittle.SipSystem:HandleUnknowCall(method, status, response_list, conte
 		sip_head = sip_head .. "Call-ID: " .. call_id .. "\r\n"
 		sip_head = sip_head .. "CSeq: " .. cseq .. "\r\n"
 		sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
-		self:Send(sip_head, remote_ip, remote_port)
+		self:Send(call_id, sip_head, remote_ip, remote_port)
 	end
 end
 
@@ -459,7 +609,7 @@ function ALittle.SipSystem:RegisterAccount(account)
 	local call_id = ALittle.String_Md5(ALittle.String_GenerateID("call_id"))
 	local via_branch = ALittle.String_Md5(ALittle.String_GenerateID("via_branch"))
 	local from_tag = ALittle.String_Md5(ALittle.String_GenerateID("from_tag"))
-	self:Send(self:GenRegister(account, call_id, via_branch, from_tag, 1, ""), self._remote_ip, self._remote_port)
+	self:Send(call_id, self:GenRegister(account, call_id, via_branch, from_tag, 1, ""), self._remote_ip, self._remote_port)
 end
 ALittle.SipSystem.RegisterAccount = Lua.CoWrap(ALittle.SipSystem.RegisterAccount)
 

@@ -45,6 +45,24 @@ function ALittle.SipRegister:Shutdown()
 	end
 end
 
+function ALittle.SipRegister:GetSipRegisterStatistics()
+	local account_count = 0
+	for account, info in ___pairs(self._register_map) do
+		account_count = account_count + (1)
+	end
+	local cur_time = ALittle.Time_GetCurTime()
+	local register_count = 0
+	local timeout_count = 0
+	for account, info in ___pairs(self._check_map) do
+		register_count = register_count + (1)
+		if info.check_register_time < cur_time then
+			timeout_count = timeout_count + (1)
+		end
+	end
+	local log = "账号总数:" .. account_count .. " 等待下次注册:" .. self._register_patch_count .. " 正在注册:" .. register_count .. " 注册超时:" .. timeout_count
+	return log
+end
+
 function ALittle.SipRegister:GetExpires()
 	return self._expires
 end
