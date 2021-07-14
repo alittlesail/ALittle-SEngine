@@ -54,6 +54,7 @@ function ALittle.SipSystem:Ctor()
 	___rawset(self, "_remote_ip", "127.0.0.1")
 	___rawset(self, "_remote_port", 5060)
 	___rawset(self, "_remote_domain", "")
+	___rawset(self, "_service_name", "ALittle")
 	___rawset(self, "_account_map", {})
 	___rawset(self, "_pre_account", "")
 	___rawset(self, "_support_100_rel", false)
@@ -85,6 +86,10 @@ function ALittle.SipSystem:Setup(sip_register, self_ip, self_port, remote_ip, re
 	self._loop_resend = A_LoopSystem:AddTimer(1000, Lua.Bind(self.HandleUpdateResend, self), -1, 1000)
 	self._loop_session = A_LoopSystem:AddTimer(1000, Lua.Bind(self.HandleUpdateSession, self), -1, 6000)
 	self._sqlite3_commit_timer = A_LoopSystem:AddTimer(1000, Lua.Bind(self.HandleSqlilte3Commit, self), -1, 1000)
+end
+
+function ALittle.SipSystem:SetServiceName(service_name)
+	self._service_name = service_name
 end
 
 function ALittle.SipSystem:SetPreAccount(pre_account)
@@ -556,7 +561,7 @@ function ALittle.SipSystem:HandleRegister(method, status, response_list, content
 		sip_head = sip_head .. "Max-Forwards: " .. max_forwards .. "\r\n"
 		sip_head = sip_head .. "Allow: " .. allow .. "\r\n"
 		sip_head = sip_head .. "WWW-Authenticate: Digest realm=\"ALittle\", nonce=\"" .. ALittle.String_Md5(ALittle.String_GenerateID("nonce")) .. "\", stale=FALSE, algorithm=MD5\r\n"
-		sip_head = sip_head .. "Server: ALittle\r\n"
+		sip_head = sip_head .. "Server: " .. self._service_name .. "\r\n"
 		sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
 		self:Send(call_id, sip_head, remote_ip, remote_port)
 		return
@@ -579,7 +584,7 @@ function ALittle.SipSystem:HandleRegister(method, status, response_list, content
 			sip_head = sip_head .. "Max-Forwards: " .. max_forwards .. "\r\n"
 			sip_head = sip_head .. "Expires: " .. expires .. "\r\n"
 			sip_head = sip_head .. "Allow: " .. allow .. "\r\n"
-			sip_head = sip_head .. "Server: ALittle\r\n"
+			sip_head = sip_head .. "Server: " .. self._service_name .. "\r\n"
 			sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
 			self:Send(call_id, sip_head, remote_ip, remote_port)
 			return
@@ -600,6 +605,7 @@ function ALittle.SipSystem:HandleUnknowCall(method, status, response_list, conte
 		sip_head = sip_head .. "To: " .. to .. "\r\n"
 		sip_head = sip_head .. "Call-ID: " .. call_id .. "\r\n"
 		sip_head = sip_head .. "CSeq: " .. cseq .. "\r\n"
+		sip_head = sip_head .. "Server: " .. self._service_name .. "\r\n"
 		sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
 		self:Send(call_id, sip_head, remote_ip, remote_port)
 	end
@@ -632,7 +638,7 @@ function ALittle.SipSystem:GenRegister(account, call_id, via_branch, from_tag, c
 		sip = sip .. "Authorization: " .. auth .. "\r\n"
 	end
 	sip = sip .. "Allow: INVITE,ACK,CANCEL,OPTIONS,BYE,REFER,NOTIFY,INFO,MESSAGE,SUBSCRIBE,INFO\r\n"
-	sip = sip .. "User-Agent: ALittle\r\n"
+	sip = sip .. "Server: " .. self._service_name .. "\r\n"
 	sip = sip .. "Content-Length: 0\r\n"
 	sip = sip .. "\r\n"
 	return sip

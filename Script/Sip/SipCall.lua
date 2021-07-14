@@ -114,7 +114,7 @@ function ALittle.SipCall:TalkByeImpl()
 	sip_head = sip_head .. self:GenVia(not self._out_or_in)
 	sip_head = sip_head .. auth
 	sip_head = sip_head .. "Reason: Q.850;cause=16;text=\"Normal call clearing\"\r\n"
-	sip_head = sip_head .. "User-Agent: ALittle\r\n"
+	sip_head = sip_head .. "Server: " .. self._sip_system._service_name .. "\r\n"
 	sip_head = sip_head .. "Max-Forwards: 70\r\n"
 	sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
 	self._sip_system:Send(self._call_id, sip_head, self._sip_ip, self._sip_port)
@@ -137,6 +137,7 @@ function ALittle.SipCall:HandleSipInfoAtTalk(method, status, response_list, cont
 		sip_head = sip_head .. "To: " .. to .. "\r\n"
 		sip_head = sip_head .. "Call-ID: " .. call_id .. "\r\n"
 		sip_head = sip_head .. "CSeq: " .. cseq .. "\r\n"
+		sip_head = sip_head .. "Server: " .. self._sip_system._service_name .. "\r\n"
 		sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
 		self._sip_system:Send(self._call_id, sip_head, self._sip_ip, self._sip_port)
 		self._sip_step = 11
@@ -156,7 +157,7 @@ function ALittle.SipCall:HandleSipInfoAtTalk(method, status, response_list, cont
 		sip_head = sip_head .. "To: " .. to .. "\r\n"
 		sip_head = sip_head .. "Call-ID: " .. call_id .. "\r\n"
 		sip_head = sip_head .. "CSeq: " .. cseq .. "\r\n"
-		sip_head = sip_head .. "User-Agent: ALittle\r\n"
+		sip_head = sip_head .. "Server: " .. self._sip_system._service_name .. "\r\n"
 		sip_head = sip_head .. "Allow: INVITE,ACK,OPTIONS,REGISTER,INFO,BYE,UPDATE\r\n"
 		sip_head = sip_head .. "Contact: <sip:" .. self._from_number .. "@" .. self._from_sip_ip .. ":" .. self._from_sip_port .. ">\r\n"
 		sip_head = sip_head .. "Content-Type: application/sdp\r\n"
@@ -177,7 +178,7 @@ function ALittle.SipCall:HandleSipInfoAtTalk(method, status, response_list, cont
 		sip_head = sip_head .. "To: " .. to .. "\r\n"
 		sip_head = sip_head .. "Call-ID: " .. call_id .. "\r\n"
 		sip_head = sip_head .. "CSeq: " .. cseq .. "\r\n"
-		sip_head = sip_head .. "User-Agent: ALittle\r\n"
+		sip_head = sip_head .. "Server: " .. self._sip_system._service_name .. "\r\n"
 		sip_head = sip_head .. "Allow: INVITE,ACK,OPTIONS,REGISTER,INFO,BYE,UPDATE\r\n"
 		sip_head = sip_head .. "Contact: <sip:" .. self._from_number .. "@" .. self._from_sip_ip .. ":" .. self._from_sip_port .. ">\r\n"
 		sip_head = sip_head .. "Content-Type: application/sdp\r\n"
@@ -205,7 +206,7 @@ function ALittle.SipCall:HandleSipInfoAtTalk(method, status, response_list, cont
 			sip_head = sip_head .. "CSeq: " .. self._callout_cseq .. " ACK\r\n"
 			sip_head = sip_head .. self:GenVia(false)
 			sip_head = sip_head .. auth
-			sip_head = sip_head .. "User-Agent: ALittle\r\n"
+			sip_head = sip_head .. "Server: " .. self._sip_system._service_name .. "\r\n"
 			sip_head = sip_head .. "Max-Forwards: 70\r\n"
 			sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
 			self._sip_system:Send(self._call_id, sip_head, self._sip_ip, self._sip_port)
@@ -240,6 +241,7 @@ function ALittle.SipCall:HandleSipInfoAtTalkBying(method, status, response_list,
 		sip_head = sip_head .. "To: " .. to .. "\r\n"
 		sip_head = sip_head .. "Call-ID: " .. call_id .. "\r\n"
 		sip_head = sip_head .. "CSeq: " .. cseq .. "\r\n"
+		sip_head = sip_head .. "Server: " .. self._sip_system._service_name .. "\r\n"
 		sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
 		self._sip_system:Send(self._call_id, sip_head, self._sip_ip, self._sip_port)
 		self._sip_step = 11
@@ -265,7 +267,7 @@ function ALittle.SipCall:SendSession(cur_time)
 	sip_head = sip_head .. self:GenFromToCallID(not self._out_or_in)
 	sip_head = sip_head .. "CSeq: " .. self._callout_cseq .. " UPDATE\r\n"
 	sip_head = sip_head .. self:GenVia(not self._out_or_in)
-	sip_head = sip_head .. "User-Agent: ALittle\r\n"
+	sip_head = sip_head .. "Server: " .. self._sip_system._service_name .. "\r\n"
 	sip_head = sip_head .. "Supported: timer\r\n"
 	sip_head = sip_head .. "Require: timer\r\n"
 	sip_head = sip_head .. "Session-Expires: " .. self._session_expires .. ";refresher=uac\r\n"
@@ -317,6 +319,7 @@ function ALittle.SipCall:HandleSipInfoCreateCallInInvite(method, status, respons
 		sip_head = sip_head .. "CSeq: " .. self._callin_invite_cseq .. " INVITE\r\n"
 		sip_head = sip_head .. self:GenVia(false)
 		sip_head = sip_head .. "Contact: <sip:" .. self._to_number .. "@" .. self._to_sip_ip .. ":" .. self._to_sip_port .. ">\r\n"
+		sip_head = sip_head .. "Server: " .. self._sip_system._service_name .. "\r\n"
 		sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
 		self._sip_system:Send(self._call_id, sip_head, self._sip_ip, self._sip_port)
 	end
@@ -357,6 +360,7 @@ function ALittle.SipCall:CallInRinging()
 		sip_head = sip_head .. "Max-Forwards: 70\r\n"
 		sip_head = sip_head .. "Contact: <sip:" .. self._to_number .. "@" .. self._to_sip_ip .. ":" .. self._to_sip_port .. ">\r\n"
 		sip_head = sip_head .. "Content-Type: application/sdp\r\n"
+		sip_head = sip_head .. "Server: " .. self._sip_system._service_name .. "\r\n"
 		sip_head = sip_head .. "Content-Length: " .. ALittle.String_Len(sip_body) .. "\r\n\r\n"
 		self._sip_system:Send(self._call_id, sip_head .. sip_body, self._sip_ip, self._sip_port)
 		self._sip_step = 6
@@ -374,6 +378,7 @@ function ALittle.SipCall:HandleSipInfoAtCallInInvite(method, status, response_li
 		sip_head = sip_head .. self:GenVia(false)
 		sip_head = sip_head .. "Max-Forwards: 70\r\n"
 		sip_head = sip_head .. "Content-Type: application/sdp\r\n"
+		sip_head = sip_head .. "Server: " .. self._sip_system._service_name .. "\r\n"
 		sip_head = sip_head .. "Content-Length: " .. ALittle.String_Len(sip_body) .. "\r\n\r\n"
 		self._sip_system:Send(self._call_id, sip_head .. sip_body, self._sip_ip, self._sip_port)
 		self._sip_step = 11
@@ -403,6 +408,7 @@ function ALittle.SipCall:CallInForbiddenImpl(response, reason)
 	if reason ~= nil then
 		sip_head = sip_head .. "Reason: " .. reason .. "\r\n"
 	end
+	sip_head = sip_head .. "Server: " .. self._sip_system._service_name .. "\r\n"
 	sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
 	self._sip_system:Send(self._call_id, sip_head, self._sip_ip, self._sip_port)
 	self._sip_step = 8
@@ -430,6 +436,7 @@ function ALittle.SipCall:CallInOKImpl()
 	sip_head = sip_head .. "Max-Forwards: 70\r\n"
 	sip_head = sip_head .. "Contact: <sip:" .. self._to_number .. "@" .. self._to_sip_ip .. ":" .. self._to_sip_port .. ">\r\n"
 	sip_head = sip_head .. "Content-Type: application/sdp\r\n"
+	sip_head = sip_head .. "Server: " .. self._sip_system._service_name .. "\r\n"
 	sip_head = sip_head .. "Content-Length: " .. ALittle.String_Len(sip_body) .. "\r\n\r\n"
 	self._sip_system:Send(self._call_id, sip_head .. sip_body, self._sip_ip, self._sip_port)
 	self._sip_step = 7
@@ -462,6 +469,7 @@ function ALittle.SipCall:HandleSipInfoAtCallInForbidden(method, status, response
 		sip_head = sip_head .. self:GenVia(false)
 		sip_head = sip_head .. "Max-Forwards: 70\r\n"
 		sip_head = sip_head .. "Content-Type: application/sdp\r\n"
+		sip_head = sip_head .. "Server: " .. self._sip_system._service_name .. "\r\n"
 		sip_head = sip_head .. "Content-Length: " .. ALittle.String_Len(sip_body) .. "\r\n\r\n"
 		self._sip_system:Send(self._call_id, sip_head .. sip_body, self._sip_ip, self._sip_port)
 		self._sip_step = 11
@@ -480,6 +488,7 @@ function ALittle.SipCall:HandleSipInfoAtCallInForbidden(method, status, response
 		sip_head = sip_head .. "To: " .. to .. "\r\n"
 		sip_head = sip_head .. "Call-ID: " .. call_id .. "\r\n"
 		sip_head = sip_head .. "CSeq: " .. cseq .. "\r\n"
+		sip_head = sip_head .. "Server: " .. self._sip_system._service_name .. "\r\n"
 		sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
 		self._sip_system:Send(self._call_id, sip_head, self._sip_ip, self._sip_port)
 		self._sip_step = 11
@@ -516,7 +525,7 @@ function ALittle.SipCall:CallOutInviteImpl(start_time)
 	sip_head = sip_head .. support
 	sip_head = sip_head .. "Contact: <sip:" .. self._from_number .. "@" .. self._from_sip_ip .. ":" .. self._from_sip_port .. ">\r\n"
 	sip_head = sip_head .. auth
-	sip_head = sip_head .. "User-Agent: ALittle\r\n"
+	sip_head = sip_head .. "Server: " .. self._sip_system._service_name .. "\r\n"
 	sip_head = sip_head .. "Content-Type: application/sdp\r\n"
 	sip_head = sip_head .. "Content-Length: " .. ALittle.String_Len(sip_body) .. "\r\n\r\n"
 	self._sip_system:Send(self._call_id, sip_head .. sip_body, self._sip_ip, self._sip_port)
@@ -540,7 +549,7 @@ function ALittle.SipCall:CallOutCancel()
 	sip_head = sip_head .. "CSeq: " .. self._callout_invite_cseq .. " CANCEL\r\n"
 	sip_head = sip_head .. self:GenVia(false)
 	sip_head = sip_head .. auth
-	sip_head = sip_head .. "User-Agent: ALittle\r\n"
+	sip_head = sip_head .. "Server: " .. self._sip_system._service_name .. "\r\n"
 	sip_head = sip_head .. "Max-Forwards: 70\r\n"
 	sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
 	self._sip_system:Send(self._call_id, sip_head, self._sip_ip, self._sip_port)
@@ -561,7 +570,7 @@ function ALittle.SipCall:CheckRequire100rel(content_list)
 	sip_head = sip_head .. self:GenVia(false)
 	sip_head = sip_head .. self:GenContact()
 	sip_head = sip_head .. "RAck: " .. rseq .. " " .. cseq .. "\r\n"
-	sip_head = sip_head .. "User-Agent: ALittle\r\n"
+	sip_head = sip_head .. "Server: " .. self._sip_system._service_name .. "\r\n"
 	sip_head = sip_head .. "Max-Forwards: 70\r\n"
 	sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
 	self._sip_system:Send(self._call_id, sip_head, self._sip_ip, self._sip_port)
@@ -622,7 +631,7 @@ function ALittle.SipCall:HandleSipInfoAtCallOutTrying(method, status, response_l
 			sip_head = sip_head .. self:GenFromToCallID(false)
 			sip_head = sip_head .. "CSeq: " .. cseq .. " ACK\r\n"
 			sip_head = sip_head .. self:GenVia(false)
-			sip_head = sip_head .. "User-Agent: ALittle\r\n"
+			sip_head = sip_head .. "Server: " .. self._sip_system._service_name .. "\r\n"
 			sip_head = sip_head .. "Max-Forwards: 70\r\n"
 			sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
 			self._sip_system:Send(self._call_id, sip_head, self._sip_ip, self._sip_port)
@@ -641,6 +650,7 @@ function ALittle.SipCall:HandleSipInfoAtCallOutTrying(method, status, response_l
 			sip_head = sip_head .. "To: " .. to .. "\r\n"
 			sip_head = sip_head .. "Call-ID: " .. call_id .. "\r\n"
 			sip_head = sip_head .. "CSeq: " .. cseq .. " ACK\r\n"
+			sip_head = sip_head .. "Server: " .. self._sip_system._service_name .. "\r\n"
 			sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
 			self._sip_system:Send(self._call_id, sip_head, self._sip_ip, self._sip_port)
 		end
@@ -667,7 +677,7 @@ function ALittle.SipCall:HandleSipInfoAtCallOutRinging(method, status, response_
 		sip_head = sip_head .. self:GenFromToCallID(false)
 		sip_head = sip_head .. "CSeq: " .. self._callout_invite_cseq .. " ACK\r\n"
 		sip_head = sip_head .. self:GenVia(false)
-		sip_head = sip_head .. "User-Agent: ALittle\r\n"
+		sip_head = sip_head .. "Server: " .. self._sip_system._service_name .. "\r\n"
 		sip_head = sip_head .. "Max-Forwards: 70\r\n"
 		sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
 		self._sip_system:Send(self._call_id, sip_head, self._sip_ip, self._sip_port)
@@ -713,7 +723,7 @@ function ALittle.SipCall:HandleSipInfoAtCallOutRinging(method, status, response_
 		sip_head = sip_head .. self:GenFromToCallID(false)
 		sip_head = sip_head .. "CSeq: 1 ACK\r\n"
 		sip_head = sip_head .. self:GenVia(false)
-		sip_head = sip_head .. "User-Agent: ALittle\r\n"
+		sip_head = sip_head .. "Server: " .. self._sip_system._service_name .. "\r\n"
 		sip_head = sip_head .. "Max-Forwards: 70\r\n"
 		sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
 		self._sip_system:Send(self._call_id, sip_head, self._sip_ip, self._sip_port)
@@ -738,7 +748,7 @@ function ALittle.SipCall:HandleSipInfoAtCallOutCanceling(method, status, respons
 			sip_head = sip_head .. self:GenFromToCallID(false)
 			sip_head = sip_head .. "CSeq: " .. self._callout_cseq .. " ACK\r\n"
 			sip_head = sip_head .. self:GenVia(false)
-			sip_head = sip_head .. "User-Agent: ALittle\r\n"
+			sip_head = sip_head .. "Server: " .. self._sip_system._service_name .. "\r\n"
 			sip_head = sip_head .. "Max-Forwards: 70\r\n"
 			sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
 			self._sip_system:Send(self._call_id, sip_head, self._sip_ip, self._sip_port)
@@ -805,7 +815,7 @@ function ALittle.SipCall:HandleResponseOKForInvite(status, content_list)
 			end
 		end
 	end
-	sip_head = sip_head .. "User-Agent: ALittle\r\n"
+	sip_head = sip_head .. "Server: " .. self._sip_system._service_name .. "\r\n"
 	sip_head = sip_head .. "Max-Forwards: 70\r\n"
 	sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
 	self._sip_system:Send(self._call_id, sip_head, self._sip_ip, self._sip_port)
@@ -844,6 +854,7 @@ function ALittle.SipCall:HandleCallSipUpdate(method, status, response_list, cont
 		sip_body = self:GenSDP()
 		sip_head = sip_head .. "Content-Type: application/sdp\r\n"
 	end
+	sip_head = sip_head .. "Server: " .. self._sip_system._service_name .. "\r\n"
 	sip_head = sip_head .. "Content-Length: " .. ALittle.String_Len(sip_body) .. "\r\n\r\n"
 	self._sip_system:Send(self._call_id, sip_head .. sip_body, self._sip_ip, self._sip_port)
 end
@@ -882,6 +893,7 @@ function ALittle.SipCall:HandleCallSipReInvite(method, status, response_list, co
 	end
 	sip_body = self:GenSDP()
 	sip_head = sip_head .. "Content-Type: application/sdp\r\n"
+	sip_head = sip_head .. "Server: " .. self._sip_system._service_name .. "\r\n"
 	sip_head = sip_head .. "Content-Length: " .. ALittle.String_Len(sip_body) .. "\r\n\r\n"
 	self._sip_system:Send(self._call_id, sip_head .. sip_body, self._sip_ip, self._sip_port)
 end
@@ -996,7 +1008,7 @@ function ALittle.SipCall:GenSDP()
 	end
 	local sdp = "v=0\r\n"
 	sdp = sdp .. "o=- " .. self._sdp_session .. " " .. self._sdp_session .. " IN IP4 " .. rtp_ip .. "\r\n"
-	sdp = sdp .. "s=ALittle\r\n"
+	sdp = sdp .. "s=" .. self._sip_system._service_name .. "\r\n"
 	sdp = sdp .. "c=IN IP4 " .. rtp_ip .. "\r\n"
 	sdp = sdp .. "t=0 0\r\n"
 	sdp = sdp .. "m=audio " .. rtp_port .. " RTP/AVP " .. self._audio_number .. " " .. self._dtmf_number .. "\r\n"

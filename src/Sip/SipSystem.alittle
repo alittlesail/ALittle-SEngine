@@ -51,6 +51,9 @@ public class SipSystem : EventDispatcher
     private int _remote_port = 5060;
     private string _remote_domain = "";
 
+    // 服务器标志名
+    protected string _service_name = "ALittle";
+
     // 账号信息
     private Map<string, SipAccount> _account_map = new Map<string, SipAccount>();
     // 主叫前缀
@@ -120,6 +123,8 @@ public class SipSystem : EventDispatcher
         // 每条提交数据库
         this._sqlite3_commit_timer = A_LoopSystem.AddTimer(1000, bind(this.HandleSqlilte3Commit, this), -1, 1000);
     }
+
+    public fun SetServiceName(string service_name) { this._service_name = service_name; }
 
     public fun SetPreAccount(string pre_account) { this._pre_account = pre_account; }
 
@@ -689,7 +694,7 @@ public class SipSystem : EventDispatcher
             sip_head = sip_head.."Max-Forwards: "..max_forwards.."\r\n";
             sip_head = sip_head.."Allow: "..allow.."\r\n";
             sip_head = sip_head.."WWW-Authenticate: Digest realm=\"ALittle\", nonce=\""..String_Md5(String_GenerateID("nonce")).."\", stale=FALSE, algorithm=MD5\r\n";
-            sip_head = sip_head.."Server: ALittle\r\n";
+            sip_head = sip_head.."Server: "..this._service_name.."\r\n";
             sip_head = sip_head.."Content-Length: 0\r\n\r\n";
             this.Send(call_id, sip_head, remote_ip, remote_port);
 
@@ -719,7 +724,7 @@ public class SipSystem : EventDispatcher
                 sip_head = sip_head.."Max-Forwards: "..max_forwards.."\r\n";
                 sip_head = sip_head.."Expires: "..expires.."\r\n";
                 sip_head = sip_head.."Allow: "..allow.."\r\n";
-                sip_head = sip_head.."Server: ALittle\r\n";
+                sip_head = sip_head.."Server: "..this._service_name.."\r\n";
                 sip_head = sip_head.."Content-Length: 0\r\n\r\n";
                 this.Send(call_id, sip_head, remote_ip, remote_port);
                 return;
@@ -745,6 +750,7 @@ public class SipSystem : EventDispatcher
 			sip_head = sip_head.."To: "..to.."\r\n";
 			sip_head = sip_head.."Call-ID: "..call_id.."\r\n";
 			sip_head = sip_head.."CSeq: "..cseq.."\r\n";
+            sip_head = sip_head.."Server: "..this._service_name.."\r\n";
 			sip_head = sip_head.."Content-Length: 0\r\n\r\n";
             this.Send(call_id, sip_head, remote_ip, remote_port);
         }
@@ -780,7 +786,7 @@ public class SipSystem : EventDispatcher
         sip = sip.."Expires: "..this._sip_register.GetExpires().."\r\n";
         if (auth != null && auth != "") sip = sip.."Authorization: "..auth.."\r\n";
         sip = sip.."Allow: INVITE,ACK,CANCEL,OPTIONS,BYE,REFER,NOTIFY,INFO,MESSAGE,SUBSCRIBE,INFO\r\n";
-        sip = sip.."User-Agent: ALittle\r\n";
+        sip = sip.."Server: "..this._service_name.."\r\n";
         sip = sip.."Content-Length: 0\r\n";
         sip = sip.."\r\n";
 
