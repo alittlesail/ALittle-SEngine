@@ -168,26 +168,25 @@ public class SipCall
     // 停止通话======================================================================================================================
     public fun StopCall(string response, string reason)
     {
-        Log(this._call_id.." Stop Call:", reason);
         // 保存停止原因
         this._stop_reason = reason;
 
         if (this._sip_step == SipStep.OUT_INVITE || this._sip_step == SipStep.OUT_TRYING || this._sip_step == SipStep.OUT_RINGING)
-            this.CallOutCancel();
+            this.CallOutCancel(reason);
         elseif (this._sip_step == SipStep.IN_INVITE || this._sip_step == SipStep.IN_TRYING || this._sip_step == SipStep.IN_RINGING)
             this.CallInForbidden(response, reason);
         elseif (this._sip_step == SipStep.TALK)
-            this.TalkBye();
+            this.TalkBye(reason);
     }
 
     // 接通部分======================================================================================================================
-    public fun TalkBye()
+    public fun TalkBye(string reason)
     {
-        this.TalkByeImpl();
+        this.TalkByeImpl(reason);
         this._sip_system.AddResend(this);
     }
 
-    public fun TalkByeImpl()
+    public fun TalkByeImpl(string reason)
     {
         var auth = this.GenProxyAuth("BYE", false);
         this._callout_cseq += 1;
@@ -199,6 +198,7 @@ public class SipCall
 		sip_head = sip_head..auth;
 		sip_head = sip_head.."Reason: Q.850;cause=16;text=\"Normal call clearing\"\r\n";
 		sip_head = sip_head.."Server: "..this._sip_system._service_name.."\r\n";
+        if (reason != null) sip_head = sip_head.."Reason: "..reason.."\r\n";
 		sip_head = sip_head.."Max-Forwards: 70\r\n";
 		sip_head = sip_head.."Content-Length: 0\r\n\r\n";
         this._sip_system.Send(this._call_id, sip_head, this._sip_ip, this._sip_port);
@@ -704,7 +704,7 @@ public class SipCall
         this.DispatchStepChanged();
     }
 
-    public fun CallOutCancel()
+    public fun CallOutCancel(string reason)
     {
         this._sip_step = SipStep.OUT_CANCELING;
         this._sip_send_time = Time_GetCurTime();
@@ -721,6 +721,7 @@ public class SipCall
 		sip_head = sip_head.."CSeq: "..this._callout_invite_cseq.." CANCEL\r\n";
 		sip_head = sip_head..this.GenVia(false);
 		sip_head = sip_head..auth;
+        if (reason != null) sip_head = sip_head.."Reason: "..reason.."\r\n";
         sip_head = sip_head.."Server: "..this._sip_system._service_name.."\r\n";
 		sip_head = sip_head.."Max-Forwards: 70\r\n";
 		sip_head = sip_head.."Content-Length: 0\r\n\r\n";

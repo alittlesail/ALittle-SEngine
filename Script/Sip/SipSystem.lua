@@ -250,7 +250,6 @@ function ALittle.SipSystem:Send(call_id, message, sip_ip, sip_port)
 end
 
 function ALittle.SipSystem:ReleaseCall(call_info)
-	ALittle.Log("Release call_id:" .. call_info._call_id)
 	A_RtpSystem:ReleaseRtp(self, call_info._call_id)
 	self._call_map[call_info._call_id] = nil
 	self._session_weak_map[call_info] = nil
@@ -379,7 +378,7 @@ function ALittle.SipSystem:HandleUpdateResend()
 		elseif call_info._sip_step == 3 then
 			if call_info._cancel_count < 15 then
 				if cur_time - call_info._sip_send_time >= 1 then
-					call_info:CallOutCancel()
+					call_info:CallOutCancel(nil)
 				end
 			else
 				if remove_map == nil then
@@ -419,7 +418,7 @@ function ALittle.SipSystem:HandleUpdateResend()
 		elseif call_info._sip_step == 10 then
 			if call_info._bye_count < 50 then
 				if cur_time - call_info._sip_send_time > 30 then
-					call_info:TalkByeImpl()
+					call_info:TalkByeImpl(nil)
 				end
 			else
 				if remove_map == nil then

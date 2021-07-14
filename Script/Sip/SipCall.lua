@@ -89,23 +89,22 @@ function ALittle.SipCall:HandleSipInfo(method, status, response_list, content_li
 end
 
 function ALittle.SipCall:StopCall(response, reason)
-	ALittle.Log(self._call_id .. " Stop Call:", reason)
 	self._stop_reason = reason
 	if self._sip_step == 0 or self._sip_step == 1 or self._sip_step == 2 then
-		self:CallOutCancel()
+		self:CallOutCancel(reason)
 	elseif self._sip_step == 4 or self._sip_step == 5 or self._sip_step == 6 then
 		self:CallInForbidden(response, reason)
 	elseif self._sip_step == 9 then
-		self:TalkBye()
+		self:TalkBye(reason)
 	end
 end
 
-function ALittle.SipCall:TalkBye()
-	self:TalkByeImpl()
+function ALittle.SipCall:TalkBye(reason)
+	self:TalkByeImpl(reason)
 	self._sip_system:AddResend(self)
 end
 
-function ALittle.SipCall:TalkByeImpl()
+function ALittle.SipCall:TalkByeImpl(reason)
 	local auth = self:GenProxyAuth("BYE", false)
 	self._callout_cseq = self._callout_cseq + (1)
 	local sip_head = self:GenCmd("BYE", not self._out_or_in)
@@ -115,6 +114,9 @@ function ALittle.SipCall:TalkByeImpl()
 	sip_head = sip_head .. auth
 	sip_head = sip_head .. "Reason: Q.850;cause=16;text=\"Normal call clearing\"\r\n"
 	sip_head = sip_head .. "Server: " .. self._sip_system._service_name .. "\r\n"
+	if reason ~= nil then
+		sip_head = sip_head .. "Reason: " .. reason .. "\r\n"
+	end
 	sip_head = sip_head .. "Max-Forwards: 70\r\n"
 	sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
 	self._sip_system:Send(self._call_id, sip_head, self._sip_ip, self._sip_port)
@@ -535,7 +537,7 @@ function ALittle.SipCall:CallOutInviteImpl(start_time)
 	self:DispatchStepChanged()
 end
 
-function ALittle.SipCall:CallOutCancel()
+function ALittle.SipCall:CallOutCancel(reason)
 	self._sip_step = 3
 	self._sip_send_time = ALittle.Time_GetCurTime()
 	self:DispatchStepChanged()
@@ -549,6 +551,9 @@ function ALittle.SipCall:CallOutCancel()
 	sip_head = sip_head .. "CSeq: " .. self._callout_invite_cseq .. " CANCEL\r\n"
 	sip_head = sip_head .. self:GenVia(false)
 	sip_head = sip_head .. auth
+	if reason ~= nil then
+		sip_head = sip_head .. "Reason: " .. reason .. "\r\n"
+	end
 	sip_head = sip_head .. "Server: " .. self._sip_system._service_name .. "\r\n"
 	sip_head = sip_head .. "Max-Forwards: 70\r\n"
 	sip_head = sip_head .. "Content-Length: 0\r\n\r\n"

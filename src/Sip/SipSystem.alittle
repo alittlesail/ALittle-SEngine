@@ -293,7 +293,6 @@ public class SipSystem : EventDispatcher
 
     protected fun ReleaseCall(SipCall call_info)
     {
-        Log("Release call_id:"..call_info._call_id);
         A_RtpSystem.ReleaseRtp(this, call_info._call_id);
         this._call_map[call_info._call_id] = null;
         this._session_weak_map[call_info] = null;
@@ -457,7 +456,7 @@ public class SipSystem : EventDispatcher
                 {
                     // 如果主动撤销的重复发送，知道对方有应答，只要有应答那么流程就可以顺利结束
                     if (cur_time - call_info._sip_send_time >= 1)
-                        call_info.CallOutCancel();
+                        call_info.CallOutCancel(null);
                 }
                 // 超过5次，那么就直接移除
                 else
@@ -513,7 +512,7 @@ public class SipSystem : EventDispatcher
                 {
                     // 如果挂断事件持续事件比较久，就直接发送
                     if (cur_time - call_info._sip_send_time > 30)
-                        call_info.TalkByeImpl();
+                        call_info.TalkByeImpl(null);
                 }
                 else
                 {
