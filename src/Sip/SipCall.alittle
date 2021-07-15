@@ -22,6 +22,16 @@ public enum SipStep
     TALK_END		= 11;   // 整通电话结束
 }
 
+// 代理Rtp
+protected struct SipProxyRtp
+{
+    string from_rtp_ip;
+    int from_rtp_port;
+
+    string to_rtp_ip;
+    int to_rtp_port;
+}
+
 public class SipCall
 {
     // 归属的SipSystem
@@ -110,6 +120,7 @@ public class SipCall
 
     // 提供给线路方的RTP
     public SipUseRtp _use_rtp;
+    public SipProxyRtp _proxy_rtp;
 
     // dtmf相关
     public string _dtmf_rtpmap;
@@ -253,7 +264,7 @@ public class SipCall
             sip_head = sip_head.."Server: "..this._sip_system._service_name.."\r\n";
 			sip_head = sip_head.."Allow: INVITE,ACK,OPTIONS,REGISTER,INFO,BYE,UPDATE\r\n";
 			sip_head = sip_head.."Contact: <sip:"..this._from_number.."@"..this._from_sip_ip..":"..this._from_sip_port..">\r\n";
-			sip_head = sip_head.."Content-Type: application/sdp\r\n";
+            if (sip_body != null && sip_body != "") sip_head = sip_head.."Content-Type: application/sdp\r\n";
 			sip_head = sip_head.."Content-Length: "..String_Len(sip_body).."\r\n\r\n";
             this._sip_system.Send(this._call_id, sip_head..sip_body, this._sip_ip, this._sip_port);
 
@@ -279,7 +290,7 @@ public class SipCall
             sip_head = sip_head.."Server: "..this._sip_system._service_name.."\r\n";
 			sip_head = sip_head.."Allow: INVITE,ACK,OPTIONS,REGISTER,INFO,BYE,UPDATE\r\n";
 			sip_head = sip_head.."Contact: <sip:"..this._from_number.."@"..this._from_sip_ip..":"..this._from_sip_port..">\r\n";
-			sip_head = sip_head.."Content-Type: application/sdp\r\n";
+			if (sip_body != null && sip_body != "") sip_head = sip_head.."Content-Type: application/sdp\r\n";
 			sip_head = sip_head.."Content-Length: "..String_Len(sip_body).."\r\n\r\n";
             this._sip_system.Send(this._call_id, sip_head..sip_body, this._sip_ip, this._sip_port);
 
@@ -289,13 +300,7 @@ public class SipCall
         if (method == "ACK")
         {
             var audio_name, audio_number, dtmf_rtpmap, dtmf_fmtp, dtmf_number, rtp_ip, rtp_port = this.GetAudioInfoSDP(content_list);
-            if (rtp_ip != null && rtp_ip != "")
-            {
-                if (this._out_or_in)
-                    A_RtpSystem.SetToRtp(this._use_rtp.sip_system, this._use_rtp.call_id, rtp_ip, rtp_port);
-                else
-                    A_RtpSystem.SetFromRtp(this._use_rtp.sip_system, this._use_rtp.call_id, rtp_ip, rtp_port);
-            }
+            this.UpdateRtpIpAndPort(rtp_ip, rtp_port);
 
             return;
         }
@@ -392,7 +397,7 @@ public class SipCall
 		sip_head = sip_head.."Require: timer\r\n";
 		sip_head = sip_head.."Session-Expires: "..this._session_expires..";refresher=uac\r\n";
 		sip_head = sip_head.."Min-SE: "..this._session_expires.."\r\n";
-		sip_head = sip_head.."Content-Type: application/sdp\r\n";
+		if (sip_body != null && sip_body != "") sip_head = sip_head.."Content-Type: application/sdp\r\n";
 		sip_head = sip_head.."Content-Length: "..String_Len(sip_body).."\r\n\r\n";
         this._sip_system.Send(this._call_id, sip_head..sip_body, this._sip_ip, this._sip_port);
     }
@@ -409,7 +414,8 @@ public class SipCall
     // 呼入部分======================================================================================================================
     public fun HandleSipInfoCreateCallInInvite(string method, string status, List<string> response_list, List<string> content_list
                                               , string self_sip_ip, int self_sip_port
-                                              , string remote_sip_ip, int remote_sip_port) : string
+                                              , string remote_sip_ip, int remote_sip_port
+                                              , bool rtp_transfer) : string
     {
         // 保存对端端口
         this._sip_ip = remote_sip_ip;
@@ -474,19 +480,19 @@ public class SipCall
         var to_ssrc = Math_RandomInt(1, 100000);
 
         // 申请rtp资源
-        var use_rtp = A_RtpSystem.UseRtp(this._sip_system, this._call_id, self_sip_ip, from_ssrc, to_ssrc);
-        if (use_rtp == null) return "rtp resource is not enough";
-
-        // 保存rtp信息
-        this._use_rtp = use_rtp;
-
-        if (rtp_ip != null && rtp_ip != "")
+        if (rtp_transfer)
         {
-            if (this._out_or_in)
-            	A_RtpSystem.SetToRtp(this._use_rtp.sip_system, this._use_rtp.call_id, rtp_ip, rtp_port);
-            else
-                A_RtpSystem.SetFromRtp(this._use_rtp.sip_system, this._use_rtp.call_id, rtp_ip, rtp_port);
+            if (this._sip_system._sip_rtp == null) return "rtp is null";
+            this._use_rtp = this._sip_system._sip_rtp.UseRtp(this._sip_system, this._call_id, self_sip_ip, from_ssrc, to_ssrc);
+            if (this._use_rtp == null) return "rtp resource is not enough";
         }
+        else
+        {
+            this._proxy_rtp = new SipProxyRtp();
+        }
+
+        // 更新rtp的IP和端口
+        this.UpdateRtpIpAndPort(rtp_ip, rtp_port);
 
         // 添加到resend
         this._sip_system.AddResend(this);
@@ -511,7 +517,7 @@ public class SipCall
             sip_head = sip_head.."Allow: "..this._callin_allow.."\r\n";
             sip_head = sip_head.."Max-Forwards: 70\r\n";
             sip_head = sip_head.."Contact: <sip:"..this._to_number.."@"..this._to_sip_ip..":"..this._to_sip_port..">\r\n";
-            sip_head = sip_head.."Content-Type: application/sdp\r\n";
+            if (sip_body != null && sip_body != "") sip_head = sip_head.."Content-Type: application/sdp\r\n";
             sip_head = sip_head.."Server: "..this._sip_system._service_name.."\r\n";
             sip_head = sip_head.."Content-Length: "..String_Len(sip_body).."\r\n\r\n";
             this._sip_system.Send(this._call_id, sip_head..sip_body, this._sip_ip, this._sip_port);
@@ -534,7 +540,7 @@ public class SipCall
 			sip_head = sip_head.."CSeq: "..cseq.."\r\n";
 			sip_head = sip_head..this.GenVia(false);
 			sip_head = sip_head.."Max-Forwards: 70\r\n";
-			sip_head = sip_head.."Content-Type: application/sdp\r\n";
+			if (sip_body != null && sip_body != "") sip_head = sip_head.."Content-Type: application/sdp\r\n";
             sip_head = sip_head.."Server: "..this._sip_system._service_name.."\r\n";
 			sip_head = sip_head.."Content-Length: "..String_Len(sip_body).."\r\n\r\n";
             this._sip_system.Send(this._call_id, sip_head..sip_body, this._sip_ip, this._sip_port);
@@ -590,7 +596,7 @@ public class SipCall
 		sip_head = sip_head.."Allow: "..this._callin_allow.."\r\n";
 		sip_head = sip_head.."Max-Forwards: 70\r\n";
 		sip_head = sip_head.."Contact: <sip:"..this._to_number.."@"..this._to_sip_ip..":"..this._to_sip_port..">\r\n";
-		sip_head = sip_head.."Content-Type: application/sdp\r\n";
+		if (sip_body != null && sip_body != "") sip_head = sip_head.."Content-Type: application/sdp\r\n";
         sip_head = sip_head.."Server: "..this._sip_system._service_name.."\r\n";
 		sip_head = sip_head.."Content-Length: "..String_Len(sip_body).."\r\n\r\n";
         this._sip_system.Send(this._call_id, sip_head..sip_body, this._sip_ip, this._sip_port);
@@ -631,7 +637,7 @@ public class SipCall
 			sip_head = sip_head.."CSeq: "..cseq.."\r\n";
 			sip_head = sip_head..this.GenVia(false);
 			sip_head = sip_head.."Max-Forwards: 70\r\n";
-			sip_head = sip_head.."Content-Type: application/sdp\r\n";
+			if (sip_body != null && sip_body != "") sip_head = sip_head.."Content-Type: application/sdp\r\n";
             sip_head = sip_head.."Server: "..this._sip_system._service_name.."\r\n";
 			sip_head = sip_head.."Content-Length: "..String_Len(sip_body).."\r\n\r\n";
             this._sip_system.Send(this._call_id, sip_head..sip_body, this._sip_ip, this._sip_port);
@@ -694,7 +700,7 @@ public class SipCall
 		sip_head = sip_head.."Contact: <sip:"..this._from_number.."@"..this._from_sip_ip..":"..this._from_sip_port..">\r\n";
 		sip_head = sip_head..auth;
         sip_head = sip_head.."Server: "..this._sip_system._service_name.."\r\n";
-		sip_head = sip_head.."Content-Type: application/sdp\r\n";
+		if (sip_body != null && sip_body != "") sip_head = sip_head.."Content-Type: application/sdp\r\n";
 		sip_head = sip_head.."Content-Length: "..String_Len(sip_body).."\r\n\r\n";
         this._sip_system.Send(this._call_id, sip_head..sip_body, this._sip_ip, this._sip_port);
 
@@ -777,13 +783,7 @@ public class SipCall
             if (this._to_tag == null || this._to_tag == "") to_number, this._to_tag = SipCall.GetToFromUDP(content_list);
 
             var audio_name, audio_number, dtmf_rtpmap, dtmf_fmtp, dtmf_number, rtp_ip, rtp_port = this.GetAudioInfoSDP(content_list);
-            if (rtp_ip != null && rtp_ip != "")
-            {
-                if (this._out_or_in)
-                    A_RtpSystem.SetToRtp(this._use_rtp.sip_system, this._use_rtp.call_id, rtp_ip, rtp_port);
-                else
-                    A_RtpSystem.SetFromRtp(this._use_rtp.sip_system, this._use_rtp.call_id, rtp_ip, rtp_port);
-            }
+            this.UpdateRtpIpAndPort(rtp_ip, rtp_port);
 
             this._receive_183_180 = true;
             this._sip_step = SipStep.OUT_RINGING;
@@ -887,13 +887,7 @@ public class SipCall
             if (this._to_tag == null || this._to_tag == "") to_number, this._to_tag = SipCall.GetToFromUDP(content_list);
 
             var audio_name, audio_number, dtmf_rtpmap, dtmf_fmtp, dtmf_number, rtp_ip, rtp_port = this.GetAudioInfoSDP(content_list);
-            if (rtp_ip != null && rtp_ip != "")
-            {
-                if (this._out_or_in)
-                    A_RtpSystem.SetToRtp(this._use_rtp.sip_system, this._use_rtp.call_id, rtp_ip, rtp_port);
-                else
-                    A_RtpSystem.SetFromRtp(this._use_rtp.sip_system, this._use_rtp.call_id, rtp_ip, rtp_port);
-            }
+            this.UpdateRtpIpAndPort(rtp_ip, rtp_port);
 
             this.CheckRequire100rel(content_list);
             return;
@@ -992,13 +986,7 @@ public class SipCall
         if (this._to_tag == null || this._to_tag == "") to_number, this._to_tag = SipCall.GetToFromUDP(content_list);
 
         var audio_name, audio_number, dtmf_rtpmap, dtmf_fmtp, dtmf_number, rtp_ip, rtp_port = this.GetAudioInfoSDP(content_list);
-        if (rtp_ip != null && rtp_ip != "")
-        {
-            if (this._out_or_in)
-            	A_RtpSystem.SetToRtp(this._use_rtp.sip_system, this._use_rtp.call_id, rtp_ip, rtp_port);
-            else
-                A_RtpSystem.SetFromRtp(this._use_rtp.sip_system, this._use_rtp.call_id, rtp_ip, rtp_port);
-        }
+        this.UpdateRtpIpAndPort(rtp_ip, rtp_port);
 
         if (this._anwser_time == null || this._anwser_time == 0) this._anwser_time = Time_GetCurTime();
 
@@ -1063,20 +1051,11 @@ public class SipCall
             if (min_se != null && min_se != "") sip_head = sip_head.."Min-SE: "..min_se.."\r\n";
         }
 
-        var sip_body = "";
-
         var audio_name, audio_number, dtmf_rtpmap, dtmf_fmtp, dtmf_number, rtp_ip, rtp_port = this.GetAudioInfoSDP(content_list);
-        if (rtp_ip != null && rtp_ip != "")
-        {
-            if (this._out_or_in)
-                A_RtpSystem.SetToRtp(this._use_rtp.sip_system, this._use_rtp.call_id, rtp_ip, rtp_port);
-            else
-                A_RtpSystem.SetFromRtp(this._use_rtp.sip_system, this._use_rtp.call_id, rtp_ip, rtp_port);
+        this.UpdateRtpIpAndPort(rtp_ip, rtp_port);
 
-            sip_body = this.GenSDP();
-            sip_head = sip_head.."Content-Type: application/sdp\r\n";
-        }
-
+        var sip_body = this.GenSDP();
+        if (sip_body != null && sip_body != "") sip_head = sip_head.."Content-Type: application/sdp\r\n";
         sip_head = sip_head.."Server: "..this._sip_system._service_name.."\r\n";
         sip_head = sip_head.."Content-Length: "..String_Len(sip_body).."\r\n\r\n";
         this._sip_system.Send(this._call_id, sip_head..sip_body, this._sip_ip, this._sip_port);
@@ -1110,19 +1089,11 @@ public class SipCall
 
         sip_head = sip_head..this.GenContact();
 
-        var sip_body = "";
-
         var audio_name, audio_number, dtmf_rtpmap, dtmf_fmtp, dtmf_number, rtp_ip, rtp_port = this.GetAudioInfoSDP(content_list);
-        if (rtp_ip != null && rtp_ip != "")
-        {
-            if (this._out_or_in)
-            	A_RtpSystem.SetToRtp(this._use_rtp.sip_system, this._use_rtp.call_id, rtp_ip, rtp_port);
-            else
-                A_RtpSystem.SetFromRtp(this._use_rtp.sip_system, this._use_rtp.call_id, rtp_ip, rtp_port);
-        }
+        this.UpdateRtpIpAndPort(rtp_ip, rtp_port);
 
-        sip_body = this.GenSDP();
-        sip_head = sip_head.."Content-Type: application/sdp\r\n";
+        var sip_body = this.GenSDP();
+        if (sip_body != null && sip_body != "") sip_head = sip_head.."Content-Type: application/sdp\r\n";
         sip_head = sip_head.."Server: "..this._sip_system._service_name.."\r\n";
         sip_head = sip_head.."Content-Length: "..String_Len(sip_body).."\r\n\r\n";
 
@@ -1130,6 +1101,33 @@ public class SipCall
     }
 
     // 通用接口======================================================================================================================
+    public fun UpdateRtpIpAndPort(string rtp_ip, int rtp_port)
+    {
+        if (rtp_ip == null || rtp_ip == "") return;
+        if (rtp_port == null || rtp_port == 0) return;
+
+        if (this._use_rtp != null)
+        {
+            if (this._out_or_in)
+                this._sip_system._sip_rtp.SetToRtp(this._use_rtp.sip_system, this._use_rtp.call_id, rtp_ip, rtp_port);
+            else
+                this._sip_system._sip_rtp.SetFromRtp(this._use_rtp.sip_system, this._use_rtp.call_id, rtp_ip, rtp_port);
+        }
+        elseif (this._proxy_rtp != null)
+        {
+            if (this._out_or_in)
+            {
+                this._proxy_rtp.from_rtp_ip = rtp_ip;
+                this._proxy_rtp.from_rtp_port = rtp_port;
+            }
+            else
+            {
+                this._proxy_rtp.to_rtp_ip = rtp_ip;
+                this._proxy_rtp.to_rtp_port = rtp_port;
+            }
+        }
+    }
+
     public fun GenProxyAuth(string method, bool use_to_number) : string
     {
         var auth = "";
@@ -1233,17 +1231,35 @@ public class SipCall
 
     public fun GenSDP() : string
     {
+        // 确定rtp的IP和端口
+        var rtp_ip:string;
+        var rtp_port:int;
+
+        if (this._use_rtp != null)
+        {
+            rtp_ip = this._use_rtp.from_rtp_ip;
+            rtp_port = this._use_rtp.from_rtp_port;
+            if (this._out_or_in)
+            {
+                rtp_ip = this._use_rtp.to_rtp_ip;
+                rtp_port = this._use_rtp.to_rtp_port;
+            }
+        }
+        elseif (this._proxy_rtp != null)
+        {
+            rtp_ip = this._proxy_rtp.from_rtp_ip;
+            rtp_port = this._proxy_rtp.from_rtp_port;
+            if (this._out_or_in)
+            {
+                rtp_ip = this._proxy_rtp.to_rtp_ip;
+                rtp_port = this._proxy_rtp.to_rtp_port;
+            }
+        }
+
+        if (rtp_ip == null) return "";
+        
         if (this._sdp_session == null)
         	this._sdp_session = Time_GetCurTime().."";
-
-        // 确定rtp的IP和端口
-        var rtp_ip = this._use_rtp.from_rtp_ip;
-        var rtp_port = this._use_rtp.from_rtp_port;
-        if (this._out_or_in)
-        {
-            rtp_ip = this._use_rtp.to_rtp_ip;
-            rtp_port = this._use_rtp.to_rtp_port;
-        }
 
     	var sdp = "v=0\r\n";
         sdp = sdp.."o=- "..this._sdp_session.." "..this._sdp_session.." IN IP4 "..rtp_ip.."\r\n";

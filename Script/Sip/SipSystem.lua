@@ -55,6 +55,7 @@ function ALittle.SipSystem:Ctor()
 	___rawset(self, "_remote_port", 5060)
 	___rawset(self, "_remote_domain", "")
 	___rawset(self, "_service_name", "ALittle")
+	___rawset(self, "_rtp_transfer", true)
 	___rawset(self, "_account_map", {})
 	___rawset(self, "_pre_account", "")
 	___rawset(self, "_support_100_rel", false)
@@ -66,8 +67,9 @@ function ALittle.SipSystem:Ctor()
 	___rawset(self, "_sqlite3_time", 0)
 end
 
-function ALittle.SipSystem:Setup(sip_register, self_ip, self_port, remote_ip, remote_port, remote_domain, sqlit3_path, sqlite3_pre_name)
+function ALittle.SipSystem:Setup(sip_register, sip_rtp, self_ip, self_port, remote_ip, remote_port, remote_domain, sqlit3_path, sqlite3_pre_name)
 	self._sip_register = sip_register
+	self._sip_rtp = sip_rtp
 	self._self_ip = self_ip
 	self._self_port = self_port
 	self._remote_ip = remote_ip
@@ -90,6 +92,10 @@ end
 
 function ALittle.SipSystem:SetServiceName(service_name)
 	self._service_name = service_name
+end
+
+function ALittle.SipSystem:SetRtpTransfer(rtp_transfer)
+	self._rtp_transfer = rtp_transfer
 end
 
 function ALittle.SipSystem:SetPreAccount(pre_account)
@@ -133,29 +139,29 @@ function ALittle.SipSystem:GetSipCallStatistics()
 	local log = "呼出数量:" .. call_out_count .. " 呼入数量:" .. call_in_count .. " 呼叫状态:\n"
 	for step, count in ___pairs(step_map) do
 		if step == 0 then
-			log = log .. "正在发起呼叫(OUT_INVITE):" .. count
+			log = log .. "正在发起呼叫(OUT_INVITE):" .. count .. "\n"
 		elseif step == 1 then
-			log = log .. "收到对方的trying(OUT_TRYING):" .. count
+			log = log .. "收到对方的trying(OUT_TRYING):" .. count .. "\n"
 		elseif step == 2 then
-			log = log .. "收到对方的响铃(OUT_RINGING):" .. count
+			log = log .. "收到对方的响铃(OUT_RINGING):" .. count .. "\n"
 		elseif step == 3 then
-			log = log .. "对方还未接通前，正在停止呼叫(OUT_CANCELING):" .. count
+			log = log .. "对方还未接通前，正在停止呼叫(OUT_CANCELING):" .. count .. "\n"
 		elseif step == 4 then
-			log = log .. "收到对方的INVITE(IN_INVITE):" .. count
+			log = log .. "收到对方的INVITE(IN_INVITE):" .. count .. "\n"
 		elseif step == 5 then
-			log = log .. "我方发送trying(IN_TRYING):" .. count
+			log = log .. "我方发送trying(IN_TRYING):" .. count .. "\n"
 		elseif step == 6 then
-			log = log .. "我方发送ringing(IN_RINGING):" .. count
+			log = log .. "我方发送ringing(IN_RINGING):" .. count .. "\n"
 		elseif step == 7 then
-			log = log .. "我方发送接听(IN_OK):" .. count
+			log = log .. "我方发送接听(IN_OK):" .. count .. "\n"
 		elseif step == 8 then
-			log = log .. "我方无法接听，发送forbidden(IN_FORBIDDEN):" .. count
+			log = log .. "我方无法接听，发送forbidden(IN_FORBIDDEN):" .. count .. "\n"
 		elseif step == 9 then
-			log = log .. "通话中(TALK):" .. count
+			log = log .. "通话中(TALK):" .. count .. "\n"
 		elseif step == 10 then
-			log = log .. "主动挂断(TALK_BYING):" .. count
+			log = log .. "主动挂断(TALK_BYING):" .. count .. "\n"
 		elseif step == 11 then
-			log = log .. "电话结束(TALK_END):" .. count
+			log = log .. "电话结束(TALK_END):" .. count .. "\n"
 		end
 	end
 	return log
@@ -250,7 +256,9 @@ function ALittle.SipSystem:Send(call_id, message, sip_ip, sip_port)
 end
 
 function ALittle.SipSystem:ReleaseCall(call_info)
-	A_RtpSystem:ReleaseRtp(self, call_info._call_id)
+	if self._sip_rtp ~= nil then
+		self._sip_rtp:ReleaseRtp(self, call_info._call_id)
+	end
 	self._call_map[call_info._call_id] = nil
 	self._session_weak_map[call_info] = nil
 	self._resend_weak_map[call_info] = nil
@@ -512,7 +520,7 @@ function ALittle.SipSystem:HandleSipInfo(event)
 			call_info = ALittle.SipCall(self)
 			call_info._call_id = call_id
 			self._call_map[call_id] = call_info
-			local error = call_info:HandleSipInfoCreateCallInInvite(method, "", response_list, content_list, self._self_ip, self._self_port, event.remote_ip, event.remote_port)
+			local error = call_info:HandleSipInfoCreateCallInInvite(method, "", response_list, content_list, self._self_ip, self._self_port, event.remote_ip, event.remote_port, self._rtp_transfer)
 			if error ~= nil then
 				call_info:StopCall(nil, error)
 			else
@@ -643,7 +651,7 @@ function ALittle.SipSystem:GenRegister(account, call_id, via_branch, from_tag, c
 	return sip
 end
 
-function ALittle.SipSystem:CallOut(call_id, account, auth_account, auth_password, from_number, to_number, audio_number, audio_name, use_rtp)
+function ALittle.SipSystem:CallOut(call_id, account, auth_account, auth_password, from_number, to_number, audio_number, audio_name, use_rtp, proxy_rtp)
 	if self._call_map[call_id] ~= nil then
 		return "call_id is exist", nil
 	end
@@ -677,6 +685,7 @@ function ALittle.SipSystem:CallOut(call_id, account, auth_account, auth_password
 		call_info._sip_port = sip_account.sip_port
 	end
 	call_info._use_rtp = use_rtp
+	call_info._proxy_rtp = proxy_rtp
 	call_info._account = account
 	call_info._auth_account = auth_account
 	call_info._auth_password = auth_password

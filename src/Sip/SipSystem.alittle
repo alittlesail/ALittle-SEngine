@@ -43,6 +43,8 @@ public class SipSystem : EventDispatcher
 {
     // 注册机制
     private SipRegister _sip_register;
+    // RTP管理
+    protected SipRtp _sip_rtp;
 
     // 配置信息
     private string _self_ip = "127.0.0.1";
@@ -53,6 +55,8 @@ public class SipSystem : EventDispatcher
 
     // 服务器标志名
     protected string _service_name = "ALittle";
+    // 是否是代理
+    protected bool _rtp_transfer = true;
 
     // 账号信息
     private Map<string, SipAccount> _account_map = new Map<string, SipAccount>();
@@ -87,11 +91,13 @@ public class SipSystem : EventDispatcher
     private int _sqlite3_time = 0;
     private int _sqlite3_commit_timer;
 
-    public fun Setup(SipRegister sip_register
+    public fun Setup(SipRegister sip_register, SipRtp sip_rtp
                     , string self_ip, int self_port, string remote_ip, int remote_port, string remote_domain
                     , string sqlit3_path, string sqlite3_pre_name)
     {
         this._sip_register = sip_register;
+        this._sip_rtp = sip_rtp;
+
         this._self_ip = self_ip;
         this._self_port = self_port;
         this._remote_ip = remote_ip;
@@ -126,6 +132,8 @@ public class SipSystem : EventDispatcher
 
     public fun SetServiceName(string service_name) { this._service_name = service_name; }
 
+    public fun SetRtpTransfer(bool rtp_transfer) { this._rtp_transfer = rtp_transfer; }
+
     public fun SetPreAccount(string pre_account) { this._pre_account = pre_account; }
 
     public fun SetSupport100Rel(bool support_100_rel) { this._support_100_rel = support_100_rel; }
@@ -140,9 +148,9 @@ public class SipSystem : EventDispatcher
 
     public fun GetSipRegisterStatistics() : string
     {
-
         if (this._sip_register == null) return "";
-        return this._sip_register.GetSipRegisterStatistics();    }
+        return this._sip_register.GetSipRegisterStatistics();
+    }
 
     public fun GetSipCallStatistics() : string
     {
@@ -168,19 +176,19 @@ public class SipSystem : EventDispatcher
         var log = "呼出数量:"..call_out_count.." 呼入数量:"..call_in_count.." 呼叫状态:\n";
         for (var step, count in step_map)
         {
-            if (step == SipStep.OUT_INVITE) log = log.."正在发起呼叫(OUT_INVITE):"..count;
-            elseif (step == SipStep.OUT_TRYING) log = log.."收到对方的trying(OUT_TRYING):"..count;
-            elseif (step == SipStep.OUT_RINGING) log = log.."收到对方的响铃(OUT_RINGING):"..count;
-            elseif (step == SipStep.OUT_CANCELING) log = log.."对方还未接通前，正在停止呼叫(OUT_CANCELING):"..count;
+            if (step == SipStep.OUT_INVITE) log = log.."正在发起呼叫(OUT_INVITE):"..count.."\n";
+            elseif (step == SipStep.OUT_TRYING) log = log.."收到对方的trying(OUT_TRYING):"..count.."\n";
+            elseif (step == SipStep.OUT_RINGING) log = log.."收到对方的响铃(OUT_RINGING):"..count.."\n";
+            elseif (step == SipStep.OUT_CANCELING) log = log.."对方还未接通前，正在停止呼叫(OUT_CANCELING):"..count.."\n";
 
-            elseif (step == SipStep.IN_INVITE) log = log.."收到对方的INVITE(IN_INVITE):"..count;
-            elseif (step == SipStep.IN_TRYING) log = log.."我方发送trying(IN_TRYING):"..count;
-            elseif (step == SipStep.IN_RINGING) log = log.."我方发送ringing(IN_RINGING):"..count;
-            elseif (step == SipStep.IN_OK) log = log.."我方发送接听(IN_OK):"..count;
-            elseif (step == SipStep.IN_FORBIDDEN) log = log.."我方无法接听，发送forbidden(IN_FORBIDDEN):"..count;
-            elseif (step == SipStep.TALK) log = log.."通话中(TALK):"..count;
-            elseif (step == SipStep.TALK_BYING) log = log.."主动挂断(TALK_BYING):"..count;
-            elseif (step == SipStep.TALK_END) log = log.."电话结束(TALK_END):"..count;
+            elseif (step == SipStep.IN_INVITE) log = log.."收到对方的INVITE(IN_INVITE):"..count.."\n";
+            elseif (step == SipStep.IN_TRYING) log = log.."我方发送trying(IN_TRYING):"..count.."\n";
+            elseif (step == SipStep.IN_RINGING) log = log.."我方发送ringing(IN_RINGING):"..count.."\n";
+            elseif (step == SipStep.IN_OK) log = log.."我方发送接听(IN_OK):"..count.."\n";
+            elseif (step == SipStep.IN_FORBIDDEN) log = log.."我方无法接听，发送forbidden(IN_FORBIDDEN):"..count.."\n";
+            elseif (step == SipStep.TALK) log = log.."通话中(TALK):"..count.."\n";
+            elseif (step == SipStep.TALK_BYING) log = log.."主动挂断(TALK_BYING):"..count.."\n";
+            elseif (step == SipStep.TALK_END) log = log.."电话结束(TALK_END):"..count.."\n";
         }
 
         return log;
@@ -293,7 +301,9 @@ public class SipSystem : EventDispatcher
 
     protected fun ReleaseCall(SipCall call_info)
     {
-        A_RtpSystem.ReleaseRtp(this, call_info._call_id);
+        if (this._sip_rtp != null)
+        	this._sip_rtp.ReleaseRtp(this, call_info._call_id);
+
         this._call_map[call_info._call_id] = null;
         this._session_weak_map[call_info] = null;
         this._resend_weak_map[call_info] = null;
@@ -629,7 +639,8 @@ public class SipSystem : EventDispatcher
                 // 处理呼入
                 var error = call_info.HandleSipInfoCreateCallInInvite(method, "", response_list, content_list
                                                                      , this._self_ip, this._self_port
-                                                                     , event.remote_ip, event.remote_port);
+                                                                     , event.remote_ip, event.remote_port
+                                                                     , this._rtp_transfer);
                 if (error != null)
                 {
                     call_info.StopCall(null, error);
@@ -795,7 +806,11 @@ public class SipSystem : EventDispatcher
     //==============================================================================================
 
     // 发起对被呼叫方的呼叫
-    public fun CallOut(string call_id, string account, string auth_account, string auth_password, string from_number, string to_number, int audio_number, string audio_name, SipUseRtp use_rtp) : string, SipCall
+    public fun CallOut(string call_id, string account
+                      , string auth_account, string auth_password
+                      , string from_number, string to_number
+                      , int audio_number, string audio_name
+                      , SipUseRtp use_rtp, SipProxyRtp proxy_rtp) : string, SipCall
     {
         if (this._call_map[call_id] != null) return "call_id is exist", null;
 
@@ -844,6 +859,7 @@ public class SipSystem : EventDispatcher
 
         // 保存rtp信息
         call_info._use_rtp = use_rtp;
+        call_info._proxy_rtp = proxy_rtp;
 
         // 保存基础信息
         call_info._account = account;

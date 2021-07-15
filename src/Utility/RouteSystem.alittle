@@ -22,7 +22,6 @@ public enum RouteType
     RT_MAP = 10;		// 地图服务器
 
     RT_SIP = 11;		// SIP服务器
-    RT_RTP = 12;		// 媒体服务器
 }
 
 // 路由端口
@@ -68,7 +67,6 @@ public static GetRouteName(int route_type, int route_num) : string
     if (route_type == RouteType.RT_DEPLOY) return "Deploy_"..route_num;
     if (route_type == RouteType.RT_MAP) return "Map_"..route_num;
     if (route_type == RouteType.RT_SIP) return "Sip_"..route_num;
-    if (route_type == RouteType.RT_RTP) return "Rtp_"..route_num;
     return "Unknow_"..route_num;
 }
 

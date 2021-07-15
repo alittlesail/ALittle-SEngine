@@ -1,0 +1,171 @@
+
+namespace ALittle;
+
+protected struct RtpInfo
+{
+    Map<SipSystem, Map<string, int>> call_id_map_port;	// CALLID映射表
+
+    int cur_port;					// 当前递增的ip
+    List<int> idle_list;		// 当前空闲列表
+
+    int total_count;				// 端口总数
+    int use_count;					// 使用个数
+}
+
+// 使用Rtp结果
+protected struct SipUseRtp
+{
+    string from_rtp_ip;
+    int from_rtp_port;
+
+    string to_rtp_ip;
+    int to_rtp_port;
+
+    int from_ssrc;
+    int to_ssrc;
+
+    // RTP归属的SIP系统和call_id
+    string call_id;
+    SipSystem sip_system;
+}
+
+public class SipRtp
+{
+    private RtpInfo _rtp_info;
+
+    private string _proxy_ip;	// 提供给客户端的ip列表
+    private string _self_ip;	 		// 提供给线路方的ip
+
+    private int _group_port_count = 2;	// 搭配使用的端口数量个数
+
+    public fun Setup(string proxy_ip, string self_ip, int start_port, int port_count)
+    {
+        // 创建rtp信息
+        this._rtp_info = new RtpInfo();
+        this._rtp_info.cur_port = start_port;
+        this._rtp_info.total_count = port_count;
+        this._rtp_info.use_count = 0;
+
+    	this._rtp_info.call_id_map_port = new Map<SipSystem, Map<string, int>>();	// CALLID映射表
+    	this._rtp_info.idle_list = new List<int>();		// 当前空闲列表
+
+        this._proxy_ip = proxy_ip;
+        this._self_ip = self_ip;
+    }
+
+    public fun Shutdown()
+    {
+        __CPPAPI_ServerSchedule.ReleaseAllRtp();
+    }
+
+    // from_ip 表示呼叫来源的ip
+    public fun UseRtp(SipSystem sip_system, string call_id, string from_ip, int from_ssrc, int to_ssrc) : SipUseRtp
+    {
+        // 个数添加
+        this._rtp_info.use_count += this._group_port_count;
+
+        // 获取新的端口
+        var first_port = 0;
+        if (this._rtp_info.idle_list[1] != null)
+        {
+            first_port = this._rtp_info.idle_list[1];
+            List_Remove(this._rtp_info.idle_list, 1);
+        }
+        else
+        {
+            first_port = this._rtp_info.cur_port;
+            this._rtp_info.cur_port += this._group_port_count;
+        }
+
+        // 把呼叫保存起来
+        var call_id_map_port = this._rtp_info.call_id_map_port[sip_system];
+        if (call_id_map_port == null)
+        {
+            call_id_map_port = new Map<string, int>();
+            this._rtp_info.call_id_map_port[sip_system] = call_id_map_port;
+        }
+        call_id_map_port[call_id] = first_port;
+    
+        // 如果来源ip是线路方，那么就是从线路方呼叫到客户端
+        var from_rtp_ip:string;
+        var to_rtp_ip:string;
+        if (this._self_ip == from_ip)
+        {
+            from_rtp_ip = this._self_ip;
+            to_rtp_ip = this._proxy_ip;
+        }
+        else
+        {
+            from_rtp_ip = this._proxy_ip;
+            to_rtp_ip = this._self_ip;
+        }
+
+        var from_rtp_port = first_port;
+        var to_rtp_port = first_port + 1;
+
+        __CPPAPI_ServerSchedule.UseRtp(first_port, call_id
+                                      , from_rtp_ip, from_rtp_port, from_ssrc
+                                      , to_rtp_ip, to_rtp_port, to_ssrc);
+
+        // 设置返回值
+		var result = new SipUseRtp();
+        result.call_id = call_id;
+        result.sip_system = sip_system;
+        
+        result.from_rtp_ip = from_rtp_ip;
+        result.from_rtp_port = from_rtp_port;
+        result.from_ssrc = from_ssrc;
+
+        result.to_rtp_ip = to_rtp_ip;
+        result.to_rtp_port = to_rtp_port;
+        result.to_ssrc = to_ssrc;
+
+        // 返回结果
+        return result;
+    }
+
+    public fun ReleaseRtp(SipSystem sip_system, string call_id)
+    {
+        var first_port = this.GetRtpInfoByCallId(sip_system, call_id);
+        if (first_port == null) return;
+
+        var call_id_map_port = this._rtp_info.call_id_map_port[sip_system];
+        if (call_id_map_port == null) return;
+
+        call_id_map_port[call_id] = null;
+    
+        this._rtp_info.use_count -= this._group_port_count;
+        List_Push(this._rtp_info.idle_list, first_port);
+    
+        __CPPAPI_ServerSchedule.ReleaseRtp(first_port);
+    }
+
+    // 设置呼叫方Rtp
+    public fun SetFromRtp(SipSystem sip_system, string call_id, string rtp_ip, int rtp_port)
+    {
+        var first_port = this.GetRtpInfoByCallId(sip_system, call_id);
+        if (first_port == null) return;
+        __CPPAPI_ServerSchedule.SetFromRtp(first_port, rtp_ip, rtp_port);
+    }
+
+    // 设置被呼叫方Rtp
+    public fun SetToRtp(SipSystem sip_system, string call_id, string rtp_ip, int rtp_port)
+    {
+        var first_port = this.GetRtpInfoByCallId(sip_system, call_id);
+        if (first_port == null) return;
+        __CPPAPI_ServerSchedule.SetToRtp(first_port, rtp_ip, rtp_port);
+    }
+
+    // 根据call_id来返回Rtp信息，以及对应的第一个端口
+    private fun GetRtpInfoByCallId(SipSystem sip_system, string call_id) : int
+    {
+        var call_id_map_port = this._rtp_info.call_id_map_port[sip_system];
+        if (call_id_map_port != null)
+        {
+            var first_port = call_id_map_port[call_id];
+            if (first_port != null) return first_port;
+        }
+
+        return null;
+    }
+}
