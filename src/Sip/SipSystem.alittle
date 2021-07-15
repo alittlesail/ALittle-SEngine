@@ -417,7 +417,7 @@ public class SipSystem : EventDispatcher
         for (var call_info, _ in this._resend_weak_map)
         {
             // 如果正在通话，那么就直接移除
-            if (call_info._sip_step == SipStep.TALK)
+            if (call_info._sip_step == SipStep.TALK || call_info._sip_step == SipStep.TALK_END)
             {
                 if (remove_map == null) remove_map = new Map<SipCall, bool>();
                 remove_map[call_info] = false;

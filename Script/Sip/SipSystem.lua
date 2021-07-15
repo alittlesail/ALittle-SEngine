@@ -353,7 +353,7 @@ function ALittle.SipSystem:HandleUpdateResend()
 	local cur_time = ALittle.Time_GetCurTime()
 	local remove_map
 	for call_info, _ in ___pairs(self._resend_weak_map) do
-		if call_info._sip_step == 9 then
+		if call_info._sip_step == 9 or call_info._sip_step == 11 then
 			if remove_map == nil then
 				remove_map = {}
 			end

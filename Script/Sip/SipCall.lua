@@ -289,7 +289,7 @@ function ALittle.SipCall:UpdateFailedReason(status, content_list)
 	self._failed_response = content_list[1]
 	local reason = ALittle.SipCall.GetKeyValueFromUDP(content_list, "REASON")
 	if reason == nil or reason == "" then
-		reason = status .. "-FAILED"
+		reason = status .. " failed"
 	end
 	if self._failed_reason == nil or self._failed_reason == "" then
 		self._failed_reason = reason
@@ -772,6 +772,11 @@ function ALittle.SipCall:HandleSipInfoAtCallOutCanceling(method, status, respons
 			self._sip_step = 9
 			self:DispatchStepChanged()
 			self:StopCall(nil, "正在Cancel的时候收到200接听事件，现在立刻发送bye来挂断电话")
+			return
+		end
+		if cseq_method == "CANCEL" and self._sip_step ~= 9 then
+			self._sip_step = 11
+			self:DispatchStepChanged()
 			return
 		end
 	end

@@ -407,7 +407,7 @@ public class SipCall
     {
         this._failed_response = content_list[1];
         var reason = SipCall.GetKeyValueFromUDP(content_list, "REASON");
-        if (reason == null || reason == "") reason = status.."-FAILED";
+        if (reason == null || reason == "") reason = status.." failed";
         if (this._failed_reason == null || this._failed_reason == "") this._failed_reason = reason;
     }
 
@@ -970,6 +970,13 @@ public class SipCall
                 this.DispatchStepChanged();
                 // 立刻发送bye的事件转为bye的状态
                 this.StopCall(null, "正在Cancel的时候收到200接听事件，现在立刻发送bye来挂断电话");
+                return;
+            }
+
+            if (cseq_method == "CANCEL" && this._sip_step != SipStep.TALK)
+            {
+                this._sip_step = SipStep.TALK_END;
+                this.DispatchStepChanged();
                 return;
             }
         }
