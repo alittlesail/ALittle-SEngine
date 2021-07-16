@@ -402,6 +402,7 @@ end
 function ALittle.SipCall:CallInForbidden(response, reason)
 	if self._sip_step == 6 or self._sip_step == 4 or self._sip_step == 5 then
 		self:CallInForbiddenImpl(response, reason)
+		self._sip_system:AddResend(self)
 	end
 end
 
@@ -432,6 +433,7 @@ end
 function ALittle.SipCall:CallInOK()
 	if self._sip_step == 6 or self._sip_step == 4 or self._sip_step == 5 then
 		self:CallInOKImpl()
+		self._sip_system:AddResend(self)
 	end
 end
 
@@ -554,6 +556,11 @@ function ALittle.SipCall:CallOutInviteImpl(start_time)
 end
 
 function ALittle.SipCall:CallOutCancel(reason)
+	self:CallOutCancelImpl(reason)
+	self._sip_system:AddResend(self)
+end
+
+function ALittle.SipCall:CallOutCancelImpl(reason)
 	self._sip_step = 3
 	self._sip_send_time = ALittle.Time_GetCurTime()
 	self:DispatchStepChanged()

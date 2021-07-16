@@ -386,7 +386,7 @@ function ALittle.SipSystem:HandleUpdateResend()
 		elseif call_info._sip_step == 3 then
 			if call_info._cancel_count < 15 then
 				if cur_time - call_info._sip_send_time >= 1 then
-					call_info:CallOutCancel(nil)
+					call_info:CallOutCancelImpl(nil)
 				end
 			else
 				if remove_map == nil then

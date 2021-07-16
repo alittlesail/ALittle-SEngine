@@ -467,7 +467,7 @@ public class SipSystem : EventDispatcher
                 {
                     // 如果主动撤销的重复发送，知道对方有应答，只要有应答那么流程就可以顺利结束
                     if (cur_time - call_info._sip_send_time >= 1)
-                        call_info.CallOutCancel(null);
+                        call_info.CallOutCancelImpl(null);
                 }
                 // 超过5次，那么就直接移除
                 else

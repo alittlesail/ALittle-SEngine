@@ -554,7 +554,10 @@ public class SipCall
     public fun CallInForbidden(string response, string reason)
     {
         if (this._sip_step == SipStep.IN_RINGING || this._sip_step == SipStep.IN_INVITE || this._sip_step == SipStep.IN_TRYING)
+        {
             this.CallInForbiddenImpl(response, reason);
+            this._sip_system.AddResend(this);
+        }
     }
 
     public fun CallInForbiddenImpl(string response, string reason)
@@ -581,7 +584,10 @@ public class SipCall
     public fun CallInOK()
     {
         if (this._sip_step == SipStep.IN_RINGING || this._sip_step == SipStep.IN_INVITE || this._sip_step == SipStep.IN_TRYING)
-        	this.CallInOKImpl();
+        {
+            this.CallInOKImpl();
+            this._sip_system.AddResend(this);
+        }
     }
 
     public fun CallInOKImpl()
@@ -670,13 +676,13 @@ public class SipCall
     }
 
     // 呼出部分======================================================================================================================
-    public fun CallOutInvite(int start_time)
+    protected fun CallOutInvite(int start_time)
     {
         this.CallOutInviteImpl(start_time);
         this._sip_system.AddResend(this);
     }
 
-    public fun CallOutInviteImpl(int start_time)
+    protected fun CallOutInviteImpl(int start_time)
     {
         if (this._start_time == null || this._start_time == 0) this._start_time = start_time;
 
@@ -711,7 +717,13 @@ public class SipCall
         this.DispatchStepChanged();
     }
 
-    public fun CallOutCancel(string reason)
+    protected fun CallOutCancel(string reason)
+    {
+        this.CallOutCancelImpl(reason);
+        this._sip_system.AddResend(this);
+    }
+
+    protected fun CallOutCancelImpl(string reason)
     {
         this._sip_step = SipStep.OUT_CANCELING;
         this._sip_send_time = Time_GetCurTime();
