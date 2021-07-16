@@ -466,7 +466,6 @@ function ALittle.SipSystem:HandleSipInfo(event)
 	local content_list = ALittle.String_Split(event.message, "\r\n")
 	local call_id = ALittle.SipCall.GetKeyValueFromUDP(content_list, "CALL-ID")
 	if call_id == nil or call_id == "" then
-		ALittle.Log("can't find CALL-ID in remote_ip:" .. event.remote_ip .. " remote_port:" .. event.remote_port .. "\n message:" .. event.message)
 		return
 	end
 	self:Sqlite3Log(call_id, event.message, event.remote_ip, event.remote_port, self._self_ip, self._self_port)

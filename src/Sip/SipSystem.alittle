@@ -569,7 +569,7 @@ public class SipSystem : EventDispatcher
         var call_id = SipCall.GetKeyValueFromUDP(content_list, "CALL-ID");
         if (call_id == null || call_id == "")
         {
-            Log("can't find CALL-ID in remote_ip:"..event.remote_ip.." remote_port:"..event.remote_port.."\n message:"..event.message);
+            // Log("can't find CALL-ID in remote_ip:"..event.remote_ip.." remote_port:"..event.remote_port.."\n message:"..event.message);
             return;
         }
 
