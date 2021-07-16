@@ -86,6 +86,7 @@ public class SipSystem : EventDispatcher
     private lua.sqlite3object _sqlite3_log;
     private lua.sqlite3stmt _sqlite3_insert_stmt;
 
+    // 呼叫日志
     private string _sqlit3_path;
     private bool _sqlite3_transaction = false;
     private int _sqlite3_time = 0;
@@ -127,7 +128,7 @@ public class SipSystem : EventDispatcher
         this._loop_session = A_LoopSystem.AddTimer(1000, bind(this.HandleUpdateSession, this), -1, 6000);
 
         // 每条提交数据库
-        this._sqlite3_commit_timer = A_LoopSystem.AddTimer(1000, bind(this.HandleSqlilte3Commit, this), -1, 1000);
+        this._sqlite3_commit_timer = A_LoopSystem.AddTimer(5000, bind(this.HandleSqlilte3Commit, this), -1, 5000);
     }
 
     public fun SetServiceName(string service_name) { this._service_name = service_name; }

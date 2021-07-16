@@ -87,7 +87,7 @@ function ALittle.SipSystem:Setup(sip_register, sip_rtp, self_ip, self_port, remo
 	self._session_weak_map = ALittle.CreateKeyWeakMap()
 	self._loop_resend = A_LoopSystem:AddTimer(1000, Lua.Bind(self.HandleUpdateResend, self), -1, 1000)
 	self._loop_session = A_LoopSystem:AddTimer(1000, Lua.Bind(self.HandleUpdateSession, self), -1, 6000)
-	self._sqlite3_commit_timer = A_LoopSystem:AddTimer(1000, Lua.Bind(self.HandleSqlilte3Commit, self), -1, 1000)
+	self._sqlite3_commit_timer = A_LoopSystem:AddTimer(5000, Lua.Bind(self.HandleSqlilte3Commit, self), -1, 5000)
 end
 
 function ALittle.SipSystem:SetServiceName(service_name)
