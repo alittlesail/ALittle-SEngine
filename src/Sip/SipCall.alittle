@@ -199,6 +199,8 @@ public class SipCall
 
     public fun TalkByeImpl(string reason)
     {
+        if (reason == null) reason = "";
+
         var auth = this.GenProxyAuth("BYE", false);
         this._callout_cseq += 1;
 
@@ -207,9 +209,8 @@ public class SipCall
 		sip_head = sip_head.."CSeq: "..this._callout_cseq.." BYE\r\n";
 		sip_head = sip_head..this.GenVia(!this._out_or_in);
 		sip_head = sip_head..auth;
-		sip_head = sip_head.."Reason: Q.850;cause=16;text=\"Normal call clearing\"\r\n";
+		sip_head = sip_head.."Reason: Q.850;cause=16;text=\"Normal call clearing\" "..reason.."\r\n";
 		sip_head = sip_head.."Server: "..this._sip_system._service_name.."\r\n";
-        if (reason != null) sip_head = sip_head.."Reason: "..reason.."\r\n";
 		sip_head = sip_head.."Max-Forwards: 70\r\n";
 		sip_head = sip_head.."Content-Length: 0\r\n\r\n";
         this._sip_system.Send(this._call_id, sip_head, this._sip_ip, this._sip_port);

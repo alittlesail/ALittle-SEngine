@@ -111,6 +111,9 @@ function ALittle.SipCall:TalkBye(reason)
 end
 
 function ALittle.SipCall:TalkByeImpl(reason)
+	if reason == nil then
+		reason = ""
+	end
 	local auth = self:GenProxyAuth("BYE", false)
 	self._callout_cseq = self._callout_cseq + (1)
 	local sip_head = self:GenCmd("BYE", not self._out_or_in)
@@ -118,11 +121,8 @@ function ALittle.SipCall:TalkByeImpl(reason)
 	sip_head = sip_head .. "CSeq: " .. self._callout_cseq .. " BYE\r\n"
 	sip_head = sip_head .. self:GenVia(not self._out_or_in)
 	sip_head = sip_head .. auth
-	sip_head = sip_head .. "Reason: Q.850;cause=16;text=\"Normal call clearing\"\r\n"
+	sip_head = sip_head .. "Reason: Q.850;cause=16;text=\"Normal call clearing\" " .. reason .. "\r\n"
 	sip_head = sip_head .. "Server: " .. self._sip_system._service_name .. "\r\n"
-	if reason ~= nil then
-		sip_head = sip_head .. "Reason: " .. reason .. "\r\n"
-	end
 	sip_head = sip_head .. "Max-Forwards: 70\r\n"
 	sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
 	self._sip_system:Send(self._call_id, sip_head, self._sip_ip, self._sip_port)
