@@ -144,6 +144,23 @@ public class SipCall
         this._sip_system.DispatchEvent(event);
     }
 
+    public fun GetStatusString() : string
+    {
+        if (this._sip_step == SipStep.OUT_INVITE) return "out invite";
+        if (this._sip_step == SipStep.OUT_TRYING) return "out trying";
+        if (this._sip_step == SipStep.OUT_RINGING) return "out ringing";
+        if (this._sip_step == SipStep.OUT_CANCELING) return "out canceling";
+        if (this._sip_step == SipStep.IN_INVITE) return "in invite";
+        if (this._sip_step == SipStep.IN_TRYING) return "in trying";
+        if (this._sip_step == SipStep.IN_RINGING) return "in ringing";
+        if (this._sip_step == SipStep.IN_OK) return "in ok";
+        if (this._sip_step == SipStep.IN_FORBIDDEN) return "in forbidden";
+        if (this._sip_step == SipStep.TALK) return "talk";
+        if (this._sip_step == SipStep.TALK_BYING) return "talk bying";
+        if (this._sip_step == SipStep.TALK_END) return "talk end";
+        return "unknow";
+    }
+
     // 处理SIP消息===================================================================================================================
     public fun HandleSipInfo(string method, string status, List<string> response_list, List<string> content_list)
     {
@@ -408,7 +425,9 @@ public class SipCall
     {
         this._failed_response = content_list[1];
         var reason = SipCall.GetKeyValueFromUDP(content_list, "REASON");
-        if (reason == null || reason == "") reason = status.." failed";
+        if (reason == null) reason = "";
+        elseif (reason != "") reason = reason.." ";
+        reason = reason.."call sip step:"..this.GetStatusString();
         if (this._failed_reason == null || this._failed_reason == "") this._failed_reason = reason;
     }
 

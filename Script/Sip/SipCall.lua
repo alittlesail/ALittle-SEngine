@@ -65,6 +65,46 @@ function ALittle.SipCall:DispatchStepChanged()
 	self._sip_system:DispatchEvent(___all_struct[-1220217441], event)
 end
 
+function ALittle.SipCall:GetStatusString()
+	if self._sip_step == 0 then
+		return "out invite"
+	end
+	if self._sip_step == 1 then
+		return "out trying"
+	end
+	if self._sip_step == 2 then
+		return "out ringing"
+	end
+	if self._sip_step == 3 then
+		return "out canceling"
+	end
+	if self._sip_step == 4 then
+		return "in invite"
+	end
+	if self._sip_step == 5 then
+		return "in trying"
+	end
+	if self._sip_step == 6 then
+		return "in ringing"
+	end
+	if self._sip_step == 7 then
+		return "in ok"
+	end
+	if self._sip_step == 8 then
+		return "in forbidden"
+	end
+	if self._sip_step == 9 then
+		return "talk"
+	end
+	if self._sip_step == 10 then
+		return "talk bying"
+	end
+	if self._sip_step == 11 then
+		return "talk end"
+	end
+	return "unknow"
+end
+
 function ALittle.SipCall:HandleSipInfo(method, status, response_list, content_list)
 	self._sip_receive_time = ALittle.Time_GetCurTime()
 	local sxx = ALittle.String_Sub(status, 1, 1)
@@ -288,9 +328,12 @@ end
 function ALittle.SipCall:UpdateFailedReason(status, content_list)
 	self._failed_response = content_list[1]
 	local reason = ALittle.SipCall.GetKeyValueFromUDP(content_list, "REASON")
-	if reason == nil or reason == "" then
-		reason = status .. " failed"
+	if reason == nil then
+		reason = ""
+	elseif reason ~= "" then
+		reason = reason .. " "
 	end
+	reason = reason .. "call sip step:" .. self:GetStatusString()
 	if self._failed_reason == nil or self._failed_reason == "" then
 		self._failed_reason = reason
 	end

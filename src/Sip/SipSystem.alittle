@@ -187,6 +187,7 @@ public class SipSystem : EventDispatcher
             elseif (step == SipStep.IN_RINGING) log = log.."我方发送ringing(IN_RINGING):"..count.."\n";
             elseif (step == SipStep.IN_OK) log = log.."我方发送接听(IN_OK):"..count.."\n";
             elseif (step == SipStep.IN_FORBIDDEN) log = log.."我方无法接听，发送forbidden(IN_FORBIDDEN):"..count.."\n";
+
             elseif (step == SipStep.TALK) log = log.."通话中(TALK):"..count.."\n";
             elseif (step == SipStep.TALK_BYING) log = log.."主动挂断(TALK_BYING):"..count.."\n";
             elseif (step == SipStep.TALK_END) log = log.."电话结束(TALK_END):"..count.."\n";
