@@ -545,6 +545,7 @@ public class SipCall
             // 设置为ringing状态
             this._sip_step = SipStep.IN_RINGING;
             this.DispatchStepChanged();
+            this._sip_system.AddResend(this);
         }
     }
 
@@ -796,6 +797,7 @@ public class SipCall
             if (this._to_tag == null || this._to_tag == "") to_number, this._to_tag = SipCall.GetToFromUDP(content_list);
             this._sip_step = SipStep.OUT_TRYING;
             this.DispatchStepChanged();
+            this._sip_system.AddResend(this);
             return;
         }
 
@@ -820,6 +822,7 @@ public class SipCall
             this._receive_183_180 = true;
             this._sip_step = SipStep.OUT_RINGING;
             this.DispatchStepChanged();
+            this._sip_system.AddResend(this);
             this.CheckRequire100rel(content_list);
             return;
         }

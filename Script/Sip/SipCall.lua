@@ -418,6 +418,7 @@ function ALittle.SipCall:CallInRinging()
 		self._sip_system:Send(self._call_id, sip_head .. sip_body, self._sip_ip, self._sip_port)
 		self._sip_step = 6
 		self:DispatchStepChanged()
+		self._sip_system:AddResend(self)
 	end
 end
 
@@ -655,6 +656,7 @@ function ALittle.SipCall:HandleSipInfoAtCallOutInvite(method, status, response_l
 		end
 		self._sip_step = 1
 		self:DispatchStepChanged()
+		self._sip_system:AddResend(self)
 		return
 	end
 	local sxx = ALittle.String_Sub(status, 1, 1)
@@ -675,6 +677,7 @@ function ALittle.SipCall:HandleSipInfoAtCallOutTrying(method, status, response_l
 		self._receive_183_180 = true
 		self._sip_step = 2
 		self:DispatchStepChanged()
+		self._sip_system:AddResend(self)
 		self:CheckRequire100rel(content_list)
 		return
 	end
