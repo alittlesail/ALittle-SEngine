@@ -50,6 +50,7 @@ ALittle.SipSystem = Lua.Class(ALittle.EventDispatcher, "ALittle.SipSystem")
 
 function ALittle.SipSystem:Ctor()
 	___rawset(self, "_self_ip", "127.0.0.1")
+	___rawset(self, "_self_yun_ip", "")
 	___rawset(self, "_self_port", 5060)
 	___rawset(self, "_remote_ip", "127.0.0.1")
 	___rawset(self, "_remote_port", 5060)
@@ -67,10 +68,11 @@ function ALittle.SipSystem:Ctor()
 	___rawset(self, "_sqlite3_time", 0)
 end
 
-function ALittle.SipSystem:Setup(sip_register, sip_rtp, self_ip, self_port, remote_ip, remote_port, remote_domain, sqlit3_path, sqlite3_pre_name)
+function ALittle.SipSystem:Setup(sip_register, sip_rtp, self_ip, self_yun_ip, self_port, remote_ip, remote_port, remote_domain, sqlit3_path, sqlite3_pre_name)
 	self._sip_register = sip_register
 	self._sip_rtp = sip_rtp
 	self._self_ip = self_ip
+	self._self_yun_ip = self_yun_ip
 	self._self_port = self_port
 	self._remote_ip = remote_ip
 	self._remote_port = remote_port
@@ -519,7 +521,11 @@ function ALittle.SipSystem:HandleSipInfo(event)
 			call_info = ALittle.SipCall(self)
 			call_info._call_id = call_id
 			self._call_map[call_id] = call_info
-			local error = call_info:HandleSipInfoCreateCallInInvite(method, "", response_list, content_list, self._self_ip, self._self_port, event.remote_ip, event.remote_port, self._rtp_transfer)
+			local self_ip = self._self_yun_ip
+			if self_ip == "" or self_ip == nil then
+				self_ip = self._self_ip
+			end
+			local error = call_info:HandleSipInfoCreateCallInInvite(method, "", response_list, content_list, self_ip, self._self_port, event.remote_ip, event.remote_port, self._rtp_transfer)
 			if error ~= nil then
 				call_info:StopCall(nil, error)
 			else
@@ -630,7 +636,11 @@ function ALittle.SipSystem:GenRegister(account, call_id, via_branch, from_tag, c
 	if remote_sip_domain == "" then
 		remote_sip_domain = self._remote_ip .. ":" .. self._remote_port
 	end
-	local self_sip_domain = self._self_ip .. ":" .. self._self_port
+	local self_ip = self._self_yun_ip
+	if self_ip == "" or self_ip == nil then
+		self_ip = self._self_ip
+	end
+	local self_sip_domain = self_ip .. ":" .. self._self_port
 	local sip = "REGISTER sip:" .. remote_sip_domain .. " SIP/2.0\r\n"
 	sip = sip .. "Via: SIP/2.0/UDP " .. self_sip_domain .. ";rport;branch=z9hG4bK-" .. via_branch .. "\r\n"
 	sip = sip .. "Max-Forwards: 70\r\n"
@@ -693,7 +703,10 @@ function ALittle.SipSystem:CallOut(call_id, account, auth_account, auth_password
 	call_info._via_branch = "z9hG4bK-" .. ALittle.String_Md5(ALittle.String_GenerateID("via_branch"))
 	call_info._call_id = call_id
 	call_info._out_or_in = true
-	call_info._from_sip_ip = self._self_ip
+	call_info._from_sip_ip = self._self_yun_ip
+	if call_info._from_sip_ip == "" or call_info._from_sip_ip == nil then
+		call_info._from_sip_ip = self._self_ip
+	end
 	call_info._from_sip_port = self._self_port
 	call_info._from_tag = ALittle.String_Md5(ALittle.String_GenerateID("from_tag"))
 	call_info._from_number = from_number

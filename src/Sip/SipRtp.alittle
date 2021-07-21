@@ -33,12 +33,14 @@ public class SipRtp
 {
     private RtpInfo _rtp_info;
 
-    private string _proxy_ip;	// 提供给客户端的ip列表
-    private string _self_ip;	 		// 提供给线路方的ip
+    private string _proxy_ip = "127.0.0.1";	// 提供给客户端RTP的ip
+    private string _proxy_yun_ip = "";	// 提供给客户端RTP的云主机外网ip
+    private string _self_ip = "127.0.0.1";	 		// 提供给线路方的ip
+    private string _self_yun_ip = "";	 		// 提供给线路方的云主机ip
 
     private int _group_port_count = 2;	// 搭配使用的端口数量个数
 
-    public fun Setup(string proxy_ip, string self_ip, int start_port, int port_count)
+    public fun Setup(string proxy_ip, string proxy_yun_ip, string self_ip, string self_yun_ip, int start_port, int port_count)
     {
         // 创建rtp信息
         this._rtp_info = new RtpInfo();
@@ -50,7 +52,9 @@ public class SipRtp
     	this._rtp_info.idle_list = new List<int>();		// 当前空闲列表
 
         this._proxy_ip = proxy_ip;
+        this._proxy_yun_ip = proxy_yun_ip;
         this._self_ip = self_ip;
+        this._self_yun_ip = self_yun_ip;
     }
 
     public fun Shutdown()
@@ -88,35 +92,46 @@ public class SipRtp
     
         // 如果来源ip是线路方，那么就是从线路方呼叫到客户端
         var from_rtp_ip:string;
+        var from_rtp_yun_ip:string;
         var to_rtp_ip:string;
+        var to_rtp_yun_ip:string;
         if (this._self_ip == from_ip)
         {
             from_rtp_ip = this._self_ip;
+            from_rtp_yun_ip = this._self_yun_ip;
             to_rtp_ip = this._proxy_ip;
+            to_rtp_yun_ip = this._proxy_yun_ip;
         }
         else
         {
             from_rtp_ip = this._proxy_ip;
+            from_rtp_yun_ip = this._proxy_yun_ip;
             to_rtp_ip = this._self_ip;
+            to_rtp_yun_ip = this._self_yun_ip;
         }
 
         var from_rtp_port = first_port;
         var to_rtp_port = first_port + 1;
 
+        if (from_rtp_yun_ip == "" || from_rtp_yun_ip == null)
+        	from_rtp_yun_ip = from_rtp_ip;
+        if (to_rtp_yun_ip == "" || to_rtp_yun_ip == null)
+        	to_rtp_yun_ip = to_rtp_ip;
+
         __CPPAPI_ServerSchedule.UseRtp(first_port, call_id
-                                      , from_rtp_ip, from_rtp_port, from_ssrc
-                                      , to_rtp_ip, to_rtp_port, to_ssrc);
+                                      , from_rtp_yun_ip, from_rtp_port, from_ssrc
+                                      , to_rtp_yun_ip, to_rtp_port, to_ssrc);
 
         // 设置返回值
 		var result = new SipUseRtp();
         result.call_id = call_id;
         result.sip_system = sip_system;
         
-        result.from_rtp_ip = from_rtp_ip;
+        result.from_rtp_ip = from_rtp_yun_ip;
         result.from_rtp_port = from_rtp_port;
         result.from_ssrc = from_ssrc;
 
-        result.to_rtp_ip = to_rtp_ip;
+        result.to_rtp_ip = to_rtp_yun_ip;
         result.to_rtp_port = to_rtp_port;
         result.to_ssrc = to_ssrc;
 

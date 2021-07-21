@@ -48,6 +48,7 @@ public class SipSystem : EventDispatcher
 
     // 配置信息
     private string _self_ip = "127.0.0.1";
+    private string _self_yun_ip = "";
     private int _self_port = 5060;
     private string _remote_ip = "127.0.0.1";
     private int _remote_port = 5060;
@@ -93,13 +94,15 @@ public class SipSystem : EventDispatcher
     private int _sqlite3_commit_timer;
 
     public fun Setup(SipRegister sip_register, SipRtp sip_rtp
-                    , string self_ip, int self_port, string remote_ip, int remote_port, string remote_domain
+                    , string self_ip, string self_yun_ip, int self_port
+                    , string remote_ip, int remote_port, string remote_domain
                     , string sqlit3_path, string sqlite3_pre_name)
     {
         this._sip_register = sip_register;
         this._sip_rtp = sip_rtp;
 
         this._self_ip = self_ip;
+        this._self_yun_ip = self_yun_ip;
         this._self_port = self_port;
         this._remote_ip = remote_ip;
         this._remote_port = remote_port;
@@ -638,9 +641,13 @@ public class SipSystem : EventDispatcher
                 call_info._call_id = call_id;
                 this._call_map[call_id] = call_info;
 
+                // 使用实际的ip
+                var self_ip = this._self_yun_ip;
+                if (self_ip == "" || self_ip == null) self_ip = this._self_ip;
+
                 // 处理呼入
                 var error = call_info.HandleSipInfoCreateCallInInvite(method, "", response_list, content_list
-                                                                     , this._self_ip, this._self_port
+                                                                     , self_ip, this._self_port
                                                                      , event.remote_ip, event.remote_port
                                                                      , this._rtp_transfer);
                 if (error != null)
@@ -785,7 +792,9 @@ public class SipSystem : EventDispatcher
         // 计算域
         var remote_sip_domain = this._remote_domain;
         if (remote_sip_domain == "") remote_sip_domain = this._remote_ip..":"..this._remote_port;
-        var self_sip_domain = this._self_ip..":"..this._self_port;
+        var self_ip = this._self_yun_ip;
+        if (self_ip == "" || self_ip == null) self_ip = this._self_ip;
+        var self_sip_domain = self_ip..":"..this._self_port;
 
         var sip = "REGISTER sip:"..remote_sip_domain.." SIP/2.0\r\n";
         sip = sip.."Via: SIP/2.0/UDP "..self_sip_domain..";rport;branch=z9hG4bK-"..via_branch.."\r\n";
@@ -875,7 +884,9 @@ public class SipSystem : EventDispatcher
         call_info._call_id = call_id;
         call_info._out_or_in = true;
     
-        call_info._from_sip_ip = this._self_ip;
+        call_info._from_sip_ip = this._self_yun_ip;
+        if (call_info._from_sip_ip == "" || call_info._from_sip_ip == null)
+        	call_info._from_sip_ip = this._self_ip;
         call_info._from_sip_port = this._self_port;
         call_info._from_tag = String_Md5(String_GenerateID("from_tag"));
         call_info._from_number = from_number;

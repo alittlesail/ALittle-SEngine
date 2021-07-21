@@ -23,10 +23,14 @@ option_map = {}
 ALittle.SipRtp = Lua.Class(nil, "ALittle.SipRtp")
 
 function ALittle.SipRtp:Ctor()
+	___rawset(self, "_proxy_ip", "127.0.0.1")
+	___rawset(self, "_proxy_yun_ip", "")
+	___rawset(self, "_self_ip", "127.0.0.1")
+	___rawset(self, "_self_yun_ip", "")
 	___rawset(self, "_group_port_count", 2)
 end
 
-function ALittle.SipRtp:Setup(proxy_ip, self_ip, start_port, port_count)
+function ALittle.SipRtp:Setup(proxy_ip, proxy_yun_ip, self_ip, self_yun_ip, start_port, port_count)
 	self._rtp_info = {}
 	self._rtp_info.cur_port = start_port
 	self._rtp_info.total_count = port_count
@@ -34,7 +38,9 @@ function ALittle.SipRtp:Setup(proxy_ip, self_ip, start_port, port_count)
 	self._rtp_info.call_id_map_port = {}
 	self._rtp_info.idle_list = {}
 	self._proxy_ip = proxy_ip
+	self._proxy_yun_ip = proxy_yun_ip
 	self._self_ip = self_ip
+	self._self_yun_ip = self_yun_ip
 end
 
 function ALittle.SipRtp:Shutdown()
@@ -58,24 +64,36 @@ function ALittle.SipRtp:UseRtp(sip_system, call_id, from_ip, from_ssrc, to_ssrc)
 	end
 	call_id_map_port[call_id] = first_port
 	local from_rtp_ip
+	local from_rtp_yun_ip
 	local to_rtp_ip
+	local to_rtp_yun_ip
 	if self._self_ip == from_ip then
 		from_rtp_ip = self._self_ip
+		from_rtp_yun_ip = self._self_yun_ip
 		to_rtp_ip = self._proxy_ip
+		to_rtp_yun_ip = self._proxy_yun_ip
 	else
 		from_rtp_ip = self._proxy_ip
+		from_rtp_yun_ip = self._proxy_yun_ip
 		to_rtp_ip = self._self_ip
+		to_rtp_yun_ip = self._self_yun_ip
 	end
 	local from_rtp_port = first_port
 	local to_rtp_port = first_port + 1
-	__CPPAPI_ServerSchedule:UseRtp(first_port, call_id, from_rtp_ip, from_rtp_port, from_ssrc, to_rtp_ip, to_rtp_port, to_ssrc)
+	if from_rtp_yun_ip == "" or from_rtp_yun_ip == nil then
+		from_rtp_yun_ip = from_rtp_ip
+	end
+	if to_rtp_yun_ip == "" or to_rtp_yun_ip == nil then
+		to_rtp_yun_ip = to_rtp_ip
+	end
+	__CPPAPI_ServerSchedule:UseRtp(first_port, call_id, from_rtp_yun_ip, from_rtp_port, from_ssrc, to_rtp_yun_ip, to_rtp_port, to_ssrc)
 	local result = {}
 	result.call_id = call_id
 	result.sip_system = sip_system
-	result.from_rtp_ip = from_rtp_ip
+	result.from_rtp_ip = from_rtp_yun_ip
 	result.from_rtp_port = from_rtp_port
 	result.from_ssrc = from_ssrc
-	result.to_rtp_ip = to_rtp_ip
+	result.to_rtp_ip = to_rtp_yun_ip
 	result.to_rtp_port = to_rtp_port
 	result.to_ssrc = to_ssrc
 	return result
