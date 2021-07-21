@@ -53,11 +53,9 @@ public class __CPPAPIServerSchedule
     // call_id SIP协议中的CALL-ID
 	// from_rtp_ip 表示要使用的ip列表，用于和客户端互发媒体包。
 	// to_rtp_ip 表示要使用的ip，用于和线路方互发RTP包
-    // from_ssrc 和呼叫方通话的标识
-    // to_ssrc 和被呼叫方通话的标识
     public fun UseRtp(int first_port, string call_id
-                     , string from_rtp_ip, int from_rtp_port, int from_ssrc
-                     , string to_rtp_ip, int to_rtp_port, int to_ssrc) {}
+                     , string from_rtp_ip, int from_rtp_port
+                     , string to_rtp_ip, int to_rtp_port) {}
 
 	// 启动服务器
 	public fun CreateUdpServer(string ip, int port) : bool {}

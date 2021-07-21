@@ -379,13 +379,11 @@ function ALittle.SipCall:HandleSipInfoCreateCallInInvite(method, status, respons
 	if not self._sip_system:CheckAccount(self._from_number, remote_sip_ip, remote_sip_port) then
 		return "account is not exist"
 	end
-	local from_ssrc = ALittle.Math_RandomInt(1, 100000)
-	local to_ssrc = ALittle.Math_RandomInt(1, 100000)
 	if rtp_transfer then
 		if self._sip_system._sip_rtp == nil then
 			return "rtp is null"
 		end
-		self._use_rtp = self._sip_system._sip_rtp:UseRtp(self._sip_system, self._call_id, self_sip_ip, from_ssrc, to_ssrc)
+		self._use_rtp = self._sip_system._sip_rtp:UseRtp(self._sip_system, self._call_id, self_sip_ip)
 		if self._use_rtp == nil then
 			return "rtp resource is not enough"
 		end

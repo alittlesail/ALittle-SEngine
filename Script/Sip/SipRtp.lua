@@ -9,8 +9,8 @@ local ___ipairs = ipairs
 
 ALittle.RegStruct(-1961403292, "ALittle.SipUseRtp", {
 name = "ALittle.SipUseRtp", ns_name = "ALittle", rl_name = "SipUseRtp", hash_code = -1961403292,
-name_list = {"from_rtp_ip","from_rtp_port","to_rtp_ip","to_rtp_port","from_ssrc","to_ssrc","call_id","sip_system"},
-type_list = {"string","int","string","int","int","int","string","ALittle.SipSystem"},
+name_list = {"from_rtp_ip","from_rtp_port","to_rtp_ip","to_rtp_port","call_id","sip_system"},
+type_list = {"string","int","string","int","string","ALittle.SipSystem"},
 option_map = {}
 })
 ALittle.RegStruct(-1599226887, "ALittle.RtpInfo", {
@@ -47,7 +47,7 @@ function ALittle.SipRtp:Shutdown()
 	__CPPAPI_ServerSchedule:ReleaseAllRtp()
 end
 
-function ALittle.SipRtp:UseRtp(sip_system, call_id, from_ip, from_ssrc, to_ssrc)
+function ALittle.SipRtp:UseRtp(sip_system, call_id, from_ip)
 	self._rtp_info.use_count = self._rtp_info.use_count + (self._group_port_count)
 	local first_port = 0
 	if self._rtp_info.idle_list[1] ~= nil then
@@ -86,16 +86,14 @@ function ALittle.SipRtp:UseRtp(sip_system, call_id, from_ip, from_ssrc, to_ssrc)
 	if to_rtp_yun_ip == "" or to_rtp_yun_ip == nil then
 		to_rtp_yun_ip = to_rtp_ip
 	end
-	__CPPAPI_ServerSchedule:UseRtp(first_port, call_id, from_rtp_yun_ip, from_rtp_port, from_ssrc, to_rtp_yun_ip, to_rtp_port, to_ssrc)
+	__CPPAPI_ServerSchedule:UseRtp(first_port, call_id, from_rtp_yun_ip, from_rtp_port, to_rtp_yun_ip, to_rtp_port)
 	local result = {}
 	result.call_id = call_id
 	result.sip_system = sip_system
 	result.from_rtp_ip = from_rtp_yun_ip
 	result.from_rtp_port = from_rtp_port
-	result.from_ssrc = from_ssrc
 	result.to_rtp_ip = to_rtp_yun_ip
 	result.to_rtp_port = to_rtp_port
-	result.to_ssrc = to_ssrc
 	return result
 end
 

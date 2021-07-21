@@ -495,15 +495,11 @@ public class SipCall
         if (!this._sip_system.CheckAccount(this._from_number, remote_sip_ip, remote_sip_port))
         	return "account is not exist";
 
-        // 随机出ssrc
-        var from_ssrc = Math_RandomInt(1, 100000);
-        var to_ssrc = Math_RandomInt(1, 100000);
-
         // 申请rtp资源
         if (rtp_transfer)
         {
             if (this._sip_system._sip_rtp == null) return "rtp is null";
-            this._use_rtp = this._sip_system._sip_rtp.UseRtp(this._sip_system, this._call_id, self_sip_ip, from_ssrc, to_ssrc);
+            this._use_rtp = this._sip_system._sip_rtp.UseRtp(this._sip_system, this._call_id, self_sip_ip);
             if (this._use_rtp == null) return "rtp resource is not enough";
         }
         else

@@ -21,9 +21,6 @@ protected struct SipUseRtp
     string to_rtp_ip;
     int to_rtp_port;
 
-    int from_ssrc;
-    int to_ssrc;
-
     // RTP归属的SIP系统和call_id
     string call_id;
     SipSystem sip_system;
@@ -63,7 +60,7 @@ public class SipRtp
     }
 
     // from_ip 表示呼叫来源的ip
-    public fun UseRtp(SipSystem sip_system, string call_id, string from_ip, int from_ssrc, int to_ssrc) : SipUseRtp
+    public fun UseRtp(SipSystem sip_system, string call_id, string from_ip) : SipUseRtp
     {
         // 个数添加
         this._rtp_info.use_count += this._group_port_count;
@@ -119,8 +116,8 @@ public class SipRtp
         	to_rtp_yun_ip = to_rtp_ip;
 
         __CPPAPI_ServerSchedule.UseRtp(first_port, call_id
-                                      , from_rtp_yun_ip, from_rtp_port, from_ssrc
-                                      , to_rtp_yun_ip, to_rtp_port, to_ssrc);
+                                      , from_rtp_yun_ip, from_rtp_port
+                                      , to_rtp_yun_ip, to_rtp_port);
 
         // 设置返回值
 		var result = new SipUseRtp();
@@ -129,11 +126,9 @@ public class SipRtp
         
         result.from_rtp_ip = from_rtp_yun_ip;
         result.from_rtp_port = from_rtp_port;
-        result.from_ssrc = from_ssrc;
 
         result.to_rtp_ip = to_rtp_yun_ip;
         result.to_rtp_port = to_rtp_port;
-        result.to_ssrc = to_ssrc;
 
         // 返回结果
         return result;
