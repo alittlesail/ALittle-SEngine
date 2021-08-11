@@ -1,0 +1,165 @@
+
+namespace ALittle;
+
+protected struct NatPortInfo
+{
+    Map<int, ALittle.IMsgCommon> port_map;
+    Map<ALittle.IMsgCommon, Map<int, bool>> client_map;
+
+    int cur_port;					// 当前递增的ip
+    Map<int, bool> idle_map;	// 快速查找
+
+    int total_count;				// 端口总数
+    int use_count;					// 使用个数
+}
+
+public class NatSystem
+{
+    private NatPortInfo _port_info;
+    private int _clear_idle_timer;
+
+    private string _nat_ip = "127.0.0.1";
+    private int _start_port = 0;
+    private int _port_count = 0;
+
+    public fun Setup(string nat_ip, int start_port, int port_count)
+    {
+        this._start_port = start_port;
+        this._port_count = port_count;
+
+        // 创建rtp信息
+        this._port_info = new NatPortInfo();
+        this._port_info.cur_port = start_port;
+        this._port_info.total_count = port_count;
+        this._port_info.use_count = 0;
+
+    	this._port_info.port_map = new Map<int, ALittle.IMsgCommon>();
+        this._port_info.client_map = new Map<ALittle.IMsgCommon, Map<int, bool>>();
+        this._port_info.idle_map = new Map<int, bool>();	// 当前空闲集合
+
+        A_SessionSystem.AddEventListener(this, this.HandleAnyConnect);
+        A_SessionSystem.AddEventListener(this, this.HandleAnyDisconnect);
+
+    	this._clear_idle_timer = A_LoopSystem.AddTimer(60 * 1000, bind(this.HandleClearIdle, this), -1, 60 * 1000);
+    }
+
+    private fun HandleClearIdle()
+    {
+        __CPPAPI_ServerSchedule.ClearIdleRtp(60);
+    }
+
+    public fun Shutdown()
+    {
+        if (this._clear_idle_timer != null)
+        {
+            A_LoopSystem.RemoveTimer(this._clear_idle_timer);
+            this._clear_idle_timer = null;
+        }
+        __CPPAPI_ServerSchedule.ReleaseAllNat();    
+    }
+
+    private fun HandleAnyConnect(ALittle.SessionConnectEvent event)
+    {
+        ALittle.Log("connect node:", ALittle.GetRouteName(event.route_type, event.route_num));
+        this._port_info.client_map[event.session] = new Map<int, bool>();
+    }
+
+    private fun HandleAnyDisconnect(ALittle.SessionDisconnectEvent event)
+    {
+        ALittle.Log("disconnected and clear all nat:", ALittle.GetRouteName(event.route_type, event.route_num));
+
+        var map = this._port_info.client_map[event.session];
+        if (map == null) return;
+        this._port_info.client_map[event.session] = null;
+
+        for (var port, info in map)
+            this.ReleasePort(event.session, port);
+    }
+
+    public fun UsePort(ALittle.IMsgCommon client, int port) : int, string
+    {
+        // 如果使用个数，超出总数
+        if (this._port_info.use_count + 1 > this._port_info.total_count) return null, null;
+
+            // 个数添加
+        this._port_info.use_count += 1;
+
+        if (port == null || port == 0)
+        {
+            // 从空闲端口获取
+            for (var value, _ in this._port_info.idle_map)
+            {
+                port = value;
+                break;
+            }
+
+            // 如果有找到，那么就移除空闲端口
+            if (port != null)
+            {
+                this._port_info.idle_map[port] = null;
+            }
+                // 如果没有就申请一下
+            else
+            {
+                while (true)
+                {
+                    port = this._port_info.cur_port;
+                    this._port_info.cur_port += 1;
+
+                    // 如果没有被占用就跳过
+                    if (this._port_info.port_map[port] == null)
+                        break;
+                }
+            }
+        }
+        else
+        {
+            if (port < this._start_port) return null, null;
+            if (port >= this._start_port + this._port_count) return null, null;
+
+            // 如果端口已被占用，那么设置为空
+            if (this._port_info.port_map[port] != null)
+                port = null;
+            else
+                this._port_info.idle_map[port] = null;
+        }
+
+        if (port == 0 || port == null) return null, null;
+
+            // 添加映射
+        this._port_info.port_map[port] = client;
+        this._port_info.client_map[client][port] = true;
+
+        // 设置鉴权密码
+        var password = ALittle.String_Md5(ALittle.String_GenerateID("carp_net_auth:"));
+        __CPPAPI_ServerSchedule.UseNat(this._nat_ip, port);
+        __CPPAPI_ServerSchedule.SetNatAuth(port, password);
+
+        return port, password;
+    }
+
+    public fun HasClientAndPort(ALittle.IMsgCommon client, int port) : bool
+    {
+        return this._port_info.port_map[port] == client;
+    }
+
+    public fun SetTarget(ALittle.IMsgCommon client, int port, string target_ip, int target_port) : string
+    {
+        if (this._port_info.port_map[port] != client) return "port:"..port.." is not be used by client";
+        __CPPAPI_ServerSchedule.SetNatTarget(port, target_ip, target_port);
+        return null;
+    }
+
+    public fun ReleasePort(ALittle.IMsgCommon client, int port)
+    {
+        if (this._port_info.port_map[port] != client) return;
+
+        var map = this._port_info.client_map[client];
+        if (map != null) map[port] = null;
+
+        this._port_info.use_count -= 1;
+        this._port_info.idle_map[port] = true;
+        this._port_info.port_map[port] = null;
+        __CPPAPI_ServerSchedule.ReleaseNat(port);
+    }
+}

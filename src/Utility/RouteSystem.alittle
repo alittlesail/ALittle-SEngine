@@ -22,6 +22,7 @@ public enum RouteType
     RT_MAP = 10;		// 地图服务器
 
     RT_SIP = 11;		// SIP服务器
+    RT_NAT = 12;		// NAT服务器
 }
 
 // 路由端口
@@ -51,6 +52,7 @@ public enum RoutePort
     RT_MAP_CONNECT = 1900;	// 地图服务器端口
 
     RT_SIP_CONNECT = 2000;	// SIP服务器端口
+    RT_NAT_CONNECT = 2100;	// NAT服务器端口
 }
 
 // 获取路由名称
@@ -67,6 +69,7 @@ public static GetRouteName(int route_type, int route_num) : string
     if (route_type == RouteType.RT_DEPLOY) return "Deploy_"..route_num;
     if (route_type == RouteType.RT_MAP) return "Map_"..route_num;
     if (route_type == RouteType.RT_SIP) return "Sip_"..route_num;
+    if (route_type == RouteType.RT_NAT) return "Nat_"..route_num;
     return "Unknow_"..route_num;
 }
 

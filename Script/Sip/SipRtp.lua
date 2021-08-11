@@ -41,13 +41,25 @@ function ALittle.SipRtp:Setup(proxy_ip, proxy_yun_ip, self_ip, self_yun_ip, star
 	self._proxy_yun_ip = proxy_yun_ip
 	self._self_ip = self_ip
 	self._self_yun_ip = self_yun_ip
+	self._clear_idle_timer = A_LoopSystem:AddTimer(60 * 1000, Lua.Bind(self.HandleClearIdle, self), -1, 60 * 1000)
+end
+
+function ALittle.SipRtp:HandleClearIdle()
+	__CPPAPI_ServerSchedule:ClearIdleRtp(60)
 end
 
 function ALittle.SipRtp:Shutdown()
+	if self._clear_idle_timer ~= nil then
+		A_LoopSystem:RemoveTimer(self._clear_idle_timer)
+		self._clear_idle_timer = nil
+	end
 	__CPPAPI_ServerSchedule:ReleaseAllRtp()
 end
 
 function ALittle.SipRtp:UseRtp(sip_system, call_id, from_ip)
+	if self._rtp_info.use_count + self._group_port_count > self._rtp_info.total_count then
+		return nil
+	end
 	self._rtp_info.use_count = self._rtp_info.use_count + (self._group_port_count)
 	local first_port = 0
 	if self._rtp_info.idle_list[1] ~= nil then

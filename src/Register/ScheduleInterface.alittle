@@ -41,9 +41,15 @@ public class __CPPAPIServerSchedule
     // 设置呼叫方的IP和端口
     public fun SetFromRtp(int first_port, string rtp_ip, int rtp_port) {}
 
-    // 设置被呼叫方的IP和端口
+	// 设置呼叫方鉴权
+	public fun SetFromAuth(int first_port, string password) {}
+
+	// 设置被呼叫方的IP和端口
     public fun SetToRtp(int first_port, string rtp_ip, int rtp_port) {}
 
+    // 设置被叫方鉴权
+	public fun SetToAuth(int first_port, string password) {}
+    
     // 清理空闲rtp，可以定时调用
     // idle_delta_time 表示超过多少秒的空闲清理掉
     public fun ClearIdleRtp(int idle_delta_time) {}
@@ -56,6 +62,24 @@ public class __CPPAPIServerSchedule
     public fun UseRtp(int first_port, string call_id
                      , string from_rtp_ip, int from_rtp_port
                      , string to_rtp_ip, int to_rtp_port) {}
+
+    // 释放nat
+    public fun ReleaseNat(int nat_port) {}
+    // 释放所有nat
+    public fun ReleaseAllNat() {}
+
+    // 设置鉴权密码
+    public fun SetNatAuth(int nat_port, string password) {}
+
+    // 设置转发目标
+    public fun SetNatTarget(int nat_port, string target_ip, int target_port) {}
+
+    // 清理空闲nat，可以定时调用
+    // idle_delta_time 表示超过多少秒的空闲清理掉
+    public fun ClearIdleNat(int idle_delta_time) {}
+
+    // 开始使用nat
+    public fun UseNat(string nat_ip, int nat_port) {}
 
 	// 启动服务器
 	public fun CreateUdpServer(string ip, int port) : bool {}

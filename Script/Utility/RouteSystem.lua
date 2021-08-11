@@ -23,6 +23,7 @@ ALittle.RouteType = {
 	RT_DEPLOY = 9,
 	RT_MAP = 10,
 	RT_SIP = 11,
+	RT_NAT = 12,
 }
 
 ALittle.RoutePort = {
@@ -41,6 +42,7 @@ ALittle.RoutePort = {
 	RT_DEPLOY_CLIENT = 1801,
 	RT_MAP_CONNECT = 1900,
 	RT_SIP_CONNECT = 2000,
+	RT_NAT_CONNECT = 2100,
 }
 
 function ALittle.GetRouteName(route_type, route_num)
@@ -76,6 +78,9 @@ function ALittle.GetRouteName(route_type, route_num)
 	end
 	if route_type == 11 then
 		return "Sip_" .. route_num
+	end
+	if route_type == 12 then
+		return "Nat_" .. route_num
 	end
 	return "Unknow_" .. route_num
 end

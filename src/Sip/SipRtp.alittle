@@ -36,6 +36,7 @@ public class SipRtp
     private string _self_yun_ip = "";	 		// 提供给线路方的云主机ip
 
     private int _group_port_count = 2;	// 搭配使用的端口数量个数
+    private int _clear_idle_timer;
 
     public fun Setup(string proxy_ip, string proxy_yun_ip, string self_ip, string self_yun_ip, int start_port, int port_count)
     {
@@ -52,16 +53,31 @@ public class SipRtp
         this._proxy_yun_ip = proxy_yun_ip;
         this._self_ip = self_ip;
         this._self_yun_ip = self_yun_ip;
+
+        this._clear_idle_timer = A_LoopSystem.AddTimer(60 * 1000, bind(this.HandleClearIdle, this), -1, 60 * 1000);
+    }
+
+    private fun HandleClearIdle()
+    {
+        __CPPAPI_ServerSchedule.ClearIdleRtp(60);
     }
 
     public fun Shutdown()
     {
+        if (this._clear_idle_timer != null)
+        {
+            A_LoopSystem.RemoveTimer(this._clear_idle_timer);
+            this._clear_idle_timer = null;
+        }
         __CPPAPI_ServerSchedule.ReleaseAllRtp();
     }
 
     // from_ip 表示呼叫来源的ip
     public fun UseRtp(SipSystem sip_system, string call_id, string from_ip) : SipUseRtp
     {
+        // 如果使用个数，超出总数
+        if (this._rtp_info.use_count + this._group_port_count > this._rtp_info.total_count) return null;
+
         // 个数添加
         this._rtp_info.use_count += this._group_port_count;
 
@@ -74,6 +90,7 @@ public class SipRtp
         }
         else
         {
+            // 如果检查是否超出范围
             first_port = this._rtp_info.cur_port;
             this._rtp_info.cur_port += this._group_port_count;
         }
