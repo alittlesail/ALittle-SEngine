@@ -3,8 +3,8 @@ namespace ALittle;
 
 protected struct NatPortInfo
 {
-    Map<int, ALittle.IMsgCommon> port_map;
-    Map<ALittle.IMsgCommon, Map<int, bool>> client_map;
+    Map<int, IMsgCommon> port_map;
+    Map<IMsgCommon, Map<int, bool>> client_map;
 
     int cur_port;					// 当前递增的ip
     Map<int, bool> idle_map;	// 快速查找
@@ -24,6 +24,7 @@ public class NatSystem
 
     public fun Setup(string nat_ip, int start_port, int port_count)
     {
+        this._nat_ip = nat_ip;
         this._start_port = start_port;
         this._port_count = port_count;
 
@@ -33,8 +34,8 @@ public class NatSystem
         this._port_info.total_count = port_count;
         this._port_info.use_count = 0;
 
-    	this._port_info.port_map = new Map<int, ALittle.IMsgCommon>();
-        this._port_info.client_map = new Map<ALittle.IMsgCommon, Map<int, bool>>();
+    	this._port_info.port_map = new Map<int, IMsgCommon>();
+        this._port_info.client_map = new Map<IMsgCommon, Map<int, bool>>();
         this._port_info.idle_map = new Map<int, bool>();	// 当前空闲集合
 
         A_SessionSystem.AddEventListener(this, this.HandleAnyConnect);
@@ -58,15 +59,15 @@ public class NatSystem
         __CPPAPI_ServerSchedule.ReleaseAllNat();    
     }
 
-    private fun HandleAnyConnect(ALittle.SessionConnectEvent event)
+    private fun HandleAnyConnect(SessionConnectEvent event)
     {
-        ALittle.Log("connect node:", ALittle.GetRouteName(event.route_type, event.route_num));
+        Log("connect node:", GetRouteName(event.route_type, event.route_num));
         this._port_info.client_map[event.session] = new Map<int, bool>();
     }
 
-    private fun HandleAnyDisconnect(ALittle.SessionDisconnectEvent event)
+    private fun HandleAnyDisconnect(SessionDisconnectEvent event)
     {
-        ALittle.Log("disconnected and clear all nat:", ALittle.GetRouteName(event.route_type, event.route_num));
+        Log("disconnected and clear all nat:", GetRouteName(event.route_type, event.route_num));
 
         var map = this._port_info.client_map[event.session];
         if (map == null) return;
@@ -76,7 +77,7 @@ public class NatSystem
             this.ReleasePort(event.session, port);
     }
 
-    public fun UsePort(ALittle.IMsgCommon client, int port) : int, string
+    public fun UsePort(IMsgCommon client, int port) : int, string
     {
         // 如果使用个数，超出总数
         if (this._port_info.use_count + 1 > this._port_info.total_count) return null, null;
@@ -131,26 +132,26 @@ public class NatSystem
         this._port_info.client_map[client][port] = true;
 
         // 设置鉴权密码
-        var password = ALittle.String_Md5(ALittle.String_GenerateID("carp_net_auth:"));
+        var password = String_Md5(String_GenerateID("carp_net_auth:"));
         __CPPAPI_ServerSchedule.UseNat(this._nat_ip, port);
         __CPPAPI_ServerSchedule.SetNatAuth(port, password);
 
         return port, password;
     }
 
-    public fun HasClientAndPort(ALittle.IMsgCommon client, int port) : bool
+    public fun HasClientAndPort(IMsgCommon client, int port) : bool
     {
         return this._port_info.port_map[port] == client;
     }
 
-    public fun SetTarget(ALittle.IMsgCommon client, int port, string target_ip, int target_port) : string
+    public fun SetTarget(IMsgCommon client, int port, string target_ip, int target_port) : string
     {
         if (this._port_info.port_map[port] != client) return "port:"..port.." is not be used by client";
         __CPPAPI_ServerSchedule.SetNatTarget(port, target_ip, target_port);
         return null;
     }
 
-    public fun ReleasePort(ALittle.IMsgCommon client, int port)
+    public fun ReleasePort(IMsgCommon client, int port)
     {
         if (this._port_info.port_map[port] != client) return;
 

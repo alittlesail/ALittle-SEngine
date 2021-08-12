@@ -92,19 +92,21 @@ function ALittle.SipRtp:UseRtp(sip_system, call_id, from_ip)
 	end
 	local from_rtp_port = first_port
 	local to_rtp_port = first_port + 1
-	if from_rtp_yun_ip == "" or from_rtp_yun_ip == nil then
-		from_rtp_yun_ip = from_rtp_ip
-	end
-	if to_rtp_yun_ip == "" or to_rtp_yun_ip == nil then
-		to_rtp_yun_ip = to_rtp_ip
-	end
-	__CPPAPI_ServerSchedule:UseRtp(first_port, call_id, from_rtp_yun_ip, from_rtp_port, to_rtp_yun_ip, to_rtp_port)
+	__CPPAPI_ServerSchedule:UseRtp(first_port, call_id, from_rtp_ip, from_rtp_port, to_rtp_ip, to_rtp_port)
 	local result = {}
 	result.call_id = call_id
 	result.sip_system = sip_system
-	result.from_rtp_ip = from_rtp_yun_ip
+	if from_rtp_yun_ip == "" or from_rtp_yun_ip == nil then
+		result.from_rtp_ip = from_rtp_ip
+	else
+		result.from_rtp_ip = from_rtp_yun_ip
+	end
 	result.from_rtp_port = from_rtp_port
-	result.to_rtp_ip = to_rtp_yun_ip
+	if to_rtp_yun_ip == "" or to_rtp_yun_ip == nil then
+		result.to_rtp_ip = to_rtp_ip
+	else
+		result.to_rtp_ip = to_rtp_yun_ip
+	end
 	result.to_rtp_port = to_rtp_port
 	return result
 end
@@ -132,12 +134,28 @@ function ALittle.SipRtp:SetFromRtp(sip_system, call_id, rtp_ip, rtp_port)
 	__CPPAPI_ServerSchedule:SetFromRtp(first_port, rtp_ip, rtp_port)
 end
 
+function ALittle.SipRtp:SetFromAuth(sip_system, call_id, password)
+	local first_port = self:GetRtpInfoByCallId(sip_system, call_id)
+	if first_port == nil then
+		return
+	end
+	__CPPAPI_ServerSchedule:SetFromAuth(first_port, password)
+end
+
 function ALittle.SipRtp:SetToRtp(sip_system, call_id, rtp_ip, rtp_port)
 	local first_port = self:GetRtpInfoByCallId(sip_system, call_id)
 	if first_port == nil then
 		return
 	end
 	__CPPAPI_ServerSchedule:SetToRtp(first_port, rtp_ip, rtp_port)
+end
+
+function ALittle.SipRtp:SetToAuth(sip_system, call_id, password)
+	local first_port = self:GetRtpInfoByCallId(sip_system, call_id)
+	if first_port == nil then
+		return
+	end
+	__CPPAPI_ServerSchedule:SetToAuth(first_port, password)
 end
 
 function ALittle.SipRtp:GetRtpInfoByCallId(sip_system, call_id)

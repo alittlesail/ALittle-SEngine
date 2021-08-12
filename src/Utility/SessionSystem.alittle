@@ -176,7 +176,7 @@ public class SessionSystem : EventDispatcher
             session.HandleDisconnected();
         }
 
-        var event = new SessionConnectEvent();
+        var event = new SessionDisconnectEvent();
         event.target = this;
         event.connect_key = connect_key;
         event.route_type = route_type;

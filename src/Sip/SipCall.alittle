@@ -136,6 +136,9 @@ public class SipCall
 
     // SDP中 session 以及 version
     public string _sdp_session;
+
+    // user_data
+    public any _user_data;	// 用户数据
     
     public fun DispatchStepChanged()
     {

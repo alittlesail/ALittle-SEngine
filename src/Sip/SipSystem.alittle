@@ -59,6 +59,11 @@ public class SipSystem : EventDispatcher
     // 是否是代理
     protected bool _rtp_transfer = true;
 
+    // 是否支持Nat服务器
+    private int _nat_port = 0;
+    private string _nat_password = "";
+    private int _nat_auth_timer;
+
     // 账号信息
     private Map<string, SipAccount> _account_map = new Map<string, SipAccount>();
     // 主叫前缀
@@ -150,6 +155,32 @@ public class SipSystem : EventDispatcher
         this._account_call_limit = new Map<string, SipCallLimit>();
     }
 
+    public fun SetNatServer(int nat_port, string nat_password)
+    {
+        this._nat_port = nat_port;
+        this._nat_password = nat_password;
+
+        if (this._nat_password != null && this._nat_password != "")
+        {
+            if (this._nat_auth_timer == null)
+                this._nat_auth_timer = A_LoopSystem.AddTimer(1, bind(this.HandleNatAuth, this), -1, 10 * 1000);
+        }
+        else
+        {
+            if (this._nat_auth_timer != null)
+            {
+                A_LoopSystem.RemoveTimer(this._nat_auth_timer);
+                this._nat_auth_timer = null;
+            }
+        }
+    }
+
+    private fun HandleNatAuth()
+    {
+        var message = "carp_nat_auth:"..this._nat_password;
+        __CPPAPI_ServerSchedule.SendUdpMessage(this._self_ip, this._self_port, this._self_yun_ip, this._nat_port, message);
+    }
+
     public fun GetSipRegisterStatistics() : string
     {
         if (this._sip_register == null) return "";
@@ -224,6 +255,12 @@ public class SipSystem : EventDispatcher
         {
             A_LoopSystem.RemoveTimer(this._sqlite3_commit_timer);
             this._sqlite3_commit_timer = null;
+        }
+
+        if (this._nat_auth_timer != null)
+        {
+            A_LoopSystem.RemoveTimer(this._nat_auth_timer);
+			this._nat_auth_timer = null;
         }
     }
 
@@ -300,7 +337,13 @@ public class SipSystem : EventDispatcher
             sip_port = this._remote_port;
         }
 
-        __CPPAPI_ServerSchedule.SendUdpMessage(this._self_ip, this._self_port, sip_ip, sip_port, message);
+        // 如果是NAT转发，并且是发给对端的，那么就转换一下目标
+        if (this._nat_password != "" && this._nat_password != null && sip_ip == this._remote_ip && sip_port == this._remote_port)
+            __CPPAPI_ServerSchedule.SendUdpMessage(this._self_ip, this._self_port, this._self_yun_ip, this._self_port, message);
+        else
+        	__CPPAPI_ServerSchedule.SendUdpMessage(this._self_ip, this._self_port, sip_ip, sip_port, message);
+
+        // 添加到日志
         this.Sqlite3Log(call_id, message, this._self_ip, this._self_port, sip_ip, sip_port);
     }
 
@@ -562,6 +605,15 @@ public class SipSystem : EventDispatcher
     {
         if (event.self_ip != this._self_ip || event.self_port != this._self_port) return;
 
+        var remote_ip = event.remote_ip;
+        var remote_port = event.remote_port;
+        // 如果是nat
+        if (this._nat_password != "" && this._nat_password != null && event.remote_ip == this._self_yun_ip && event.remote_port == this._self_port)
+        {
+            remote_ip = this._remote_ip;
+            remote_port = this._remote_port;
+        }
+
         var message_len = String_Len(event.message);
         // 拦截心跳包
         if (message_len == 2 && event.message == "\r\n") return;
@@ -573,12 +625,12 @@ public class SipSystem : EventDispatcher
         var call_id = SipCall.GetKeyValueFromUDP(content_list, "CALL-ID");
         if (call_id == null || call_id == "")
         {
-            // Log("can't find CALL-ID in remote_ip:"..event.remote_ip.." remote_port:"..event.remote_port.."\n message:"..event.message);
+            // Log("can't find CALL-ID in remote_ip:"..remote_ip.." remote_port:"..remote_port.."\n message:"..event.message);
             return;
         }
 
         // 打印日志
-        this.Sqlite3Log(call_id, event.message, event.remote_ip, event.remote_port, this._self_ip, this._self_port);
+        this.Sqlite3Log(call_id, event.message, remote_ip, remote_port, this._self_ip, this._self_port);
 
         // 从第一行拆分出命令
         if (content_list[1] == null) return;
@@ -596,7 +648,7 @@ public class SipSystem : EventDispatcher
         
         if (method == "REGISTER")
         {
-            this.HandleRegister(method, status, response_list, content_list, event.remote_ip, event.remote_port);
+            this.HandleRegister(method, status, response_list, content_list, remote_ip, remote_port);
             return;
         }
 
@@ -621,7 +673,7 @@ public class SipSystem : EventDispatcher
                 var auth = SipCall.GenAuth(nonce, realm, auth_account, auth_password, "REGISTER", uri);
 
                 var via_branch = String_Md5(String_GenerateID("via_branch"));
-                this.Send(call_id, this.GenRegister(from_number, call_id, via_branch, from_tag, cseq_number + 1, auth), event.remote_ip, event.remote_port);
+                this.Send(call_id, this.GenRegister(from_number, call_id, via_branch, from_tag, cseq_number + 1, auth), remote_ip, remote_port);
             }
             elseif (status == "200")
             {
@@ -648,7 +700,7 @@ public class SipSystem : EventDispatcher
                 // 处理呼入
                 var error = call_info.HandleSipInfoCreateCallInInvite(method, "", response_list, content_list
                                                                      , self_ip, this._self_port
-                                                                     , event.remote_ip, event.remote_port
+                                                                     , remote_ip, remote_port
                                                                      , this._rtp_transfer);
                 if (error != null)
                 {
@@ -674,7 +726,7 @@ public class SipSystem : EventDispatcher
             if (call_info == null)
             {
                 Warn("can't find call id:"..call_id);
-                this.HandleUnknowCall(method, status, response_list, content_list, event.remote_ip, event.remote_port);
+                this.HandleUnknowCall(method, status, response_list, content_list, remote_ip, remote_port);
                 return;
             }
 

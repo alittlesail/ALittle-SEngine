@@ -30,6 +30,7 @@ function ALittle.NatSystem:Ctor()
 end
 
 function ALittle.NatSystem:Setup(nat_ip, start_port, port_count)
+	self._nat_ip = nat_ip
 	self._start_port = start_port
 	self._port_count = port_count
 	self._port_info = {}

@@ -148,7 +148,7 @@ function ALittle.SessionSystem:HandleSessionDisconnect(connect_key, route_type, 
 	event.route_type = route_type
 	event.route_num = route_num
 	event.session = session
-	self:DispatchEvent(___all_struct[888437463], event)
+	self:DispatchEvent(___all_struct[-36908822], event)
 	local key = route_type .. "_" .. route_num
 	local info = self._connect_map[key]
 	if info ~= nil and info.connect_key == connect_key then

@@ -127,24 +127,25 @@ public class SipRtp
         var from_rtp_port = first_port;
         var to_rtp_port = first_port + 1;
 
-        if (from_rtp_yun_ip == "" || from_rtp_yun_ip == null)
-        	from_rtp_yun_ip = from_rtp_ip;
-        if (to_rtp_yun_ip == "" || to_rtp_yun_ip == null)
-        	to_rtp_yun_ip = to_rtp_ip;
-
         __CPPAPI_ServerSchedule.UseRtp(first_port, call_id
-                                      , from_rtp_yun_ip, from_rtp_port
-                                      , to_rtp_yun_ip, to_rtp_port);
+                                      , from_rtp_ip, from_rtp_port
+                                      , to_rtp_ip, to_rtp_port);
 
         // 设置返回值
 		var result = new SipUseRtp();
         result.call_id = call_id;
         result.sip_system = sip_system;
-        
-        result.from_rtp_ip = from_rtp_yun_ip;
+    
+        if (from_rtp_yun_ip == "" || from_rtp_yun_ip == null)
+        	result.from_rtp_ip = from_rtp_ip;
+        else
+            result.from_rtp_ip = from_rtp_yun_ip;
         result.from_rtp_port = from_rtp_port;
 
-        result.to_rtp_ip = to_rtp_yun_ip;
+        if (to_rtp_yun_ip == "" || to_rtp_yun_ip == null)
+        	result.to_rtp_ip = to_rtp_ip;
+        else
+            result.to_rtp_ip = to_rtp_yun_ip;
         result.to_rtp_port = to_rtp_port;
 
         // 返回结果
@@ -175,12 +176,28 @@ public class SipRtp
         __CPPAPI_ServerSchedule.SetFromRtp(first_port, rtp_ip, rtp_port);
     }
 
+    // 设置呼叫方鉴权信息
+    public fun SetFromAuth(SipSystem sip_system, string call_id, string password)
+    {
+        var first_port = this.GetRtpInfoByCallId(sip_system, call_id);
+        if (first_port == null) return;
+        __CPPAPI_ServerSchedule.SetFromAuth(first_port, password);
+    }
+
     // 设置被呼叫方Rtp
     public fun SetToRtp(SipSystem sip_system, string call_id, string rtp_ip, int rtp_port)
     {
         var first_port = this.GetRtpInfoByCallId(sip_system, call_id);
         if (first_port == null) return;
         __CPPAPI_ServerSchedule.SetToRtp(first_port, rtp_ip, rtp_port);
+    }
+
+    // 设置被呼叫方鉴权信息
+    public fun SetToAuth(SipSystem sip_system, string call_id, string password)
+    {
+        var first_port = this.GetRtpInfoByCallId(sip_system, call_id);
+        if (first_port == null) return;
+        __CPPAPI_ServerSchedule.SetToAuth(first_port, password);
     }
 
     // 根据call_id来返回Rtp信息，以及对应的第一个端口
