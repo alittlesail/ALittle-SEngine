@@ -80,6 +80,7 @@ function ALittle.NatSystem:UsePort(client, port)
 	end
 	self._port_info.use_count = self._port_info.use_count + (1)
 	if port == nil or port == 0 then
+		port = nil
 		for value, _ in ___pairs(self._port_info.idle_map) do
 			port = value
 			break
