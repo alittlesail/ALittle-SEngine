@@ -57,7 +57,7 @@ public class __CPPAPIServerSchedule
     // 开始使用rtp
     // first_port 是作为复用RTP的主键
     // call_id SIP协议中的CALL-ID
-	// from_rtp_ip 表示要使用的ip列表，用于和客户端互发媒体包。
+	// from_rtp_ip 表示要使用的ip，用于和客户端互发媒体包。
 	// to_rtp_ip 表示要使用的ip，用于和线路方互发RTP包
     public fun UseRtp(int first_port, string call_id
                      , string from_rtp_ip, int from_rtp_port

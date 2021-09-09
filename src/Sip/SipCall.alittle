@@ -25,9 +25,11 @@ public enum SipStep
 // 代理Rtp
 protected struct SipProxyRtp
 {
+    // 呼叫方的Rtp的IP和端口
     string from_rtp_ip;
     int from_rtp_port;
 
+    // 被叫方的Rtp的IP和端口
     string to_rtp_ip;
     int to_rtp_port;
 }
@@ -133,6 +135,10 @@ public class SipCall
     // 对端的SIP的IP和端口
     public string _sip_ip;
     public int _sip_port;
+
+    // 对端的RTP的IP和端口
+    public string _rtp_ip;
+    public int _rtp_port;
 
     // SDP中 session 以及 version
     public string _sdp_session;
@@ -511,6 +517,9 @@ public class SipCall
         }
 
         // 更新rtp的IP和端口
+        // 如果当前使用了NAT，这里更新RTP的IP和端口，那么就不会经过NAT，直接向目标RTP发送媒体包，目前测试没有问题
+        // 这样也可以节省NAT一半的流量。
+        // 假设哪天不能直接向目标发送媒体包了，那么就要向NAT的绑定端口发送媒体包，让NAT去转发，那么就不要调用UpdateRtpIpAndPort函数。
         this.UpdateRtpIpAndPort(rtp_ip, rtp_port);
 
         // 添加到resend
@@ -1147,8 +1156,13 @@ public class SipCall
         if (rtp_ip == null || rtp_ip == "") return;
         if (rtp_port == null || rtp_port == 0) return;
 
+        this._rtp_ip = rtp_ip;
+        this._rtp_port = rtp_port;
+
         if (this._use_rtp != null)
         {
+            // 如果是呼出，那么就设置被叫方的目标ip端口
+            // 否则就设置主叫方的ip端口
             if (this._out_or_in)
                 this._sip_system._sip_rtp.SetToRtp(this._use_rtp.sip_system, this._use_rtp.call_id, rtp_ip, rtp_port);
             else

@@ -15,6 +15,10 @@ protected struct RtpInfo
 // 使用Rtp结果
 protected struct SipUseRtp
 {
+    // 以下两个ip和端口都是本进程的
+    // from表示和主叫方对接的ip端口
+    // to表示和被叫方对接的ip端口
+    // 当分配好之后不会变化
     string from_rtp_ip;
     int from_rtp_port;
 
@@ -104,12 +108,13 @@ public class SipRtp
         }
         call_id_map_port[call_id] = first_port;
     
-        // 如果来源ip是线路方，那么就是从线路方呼叫到客户端
         var from_rtp_ip:string;
         var from_rtp_yun_ip:string;
         var to_rtp_ip:string;
         var to_rtp_yun_ip:string;
-        if (this._self_ip == from_ip)
+        // 如果来源ip是线路方，那么就是从线路方呼叫到客户端
+        // 否则就是客户端呼叫到线路方
+        if (this._self_ip == from_ip || this._self_yun_ip == from_ip)
         {
             from_rtp_ip = this._self_ip;
             from_rtp_yun_ip = this._self_yun_ip;

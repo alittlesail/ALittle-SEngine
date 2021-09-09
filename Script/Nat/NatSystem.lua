@@ -54,11 +54,16 @@ function ALittle.NatSystem:Shutdown()
 		A_LoopSystem:RemoveTimer(self._clear_idle_timer)
 		self._clear_idle_timer = nil
 	end
-	__CPPAPI_ServerSchedule:ReleaseAllNat()
+	for session, map in ___pairs(self._port_info.client_map) do
+		for port, info in ___pairs(map) do
+			self:ReleasePort(session, port)
+		end
+	end
+	self._port_info.client_map = {}
 end
 
 function ALittle.NatSystem:HandleAnyConnect(event)
-	ALittle.Log("connect node:", ALittle.GetRouteName(event.route_type, event.route_num))
+	ALittle.Log("nat system, new node connected:" .. ALittle.GetRouteName(event.route_type, event.route_num) .. ", ip:" .. self._nat_ip .. " start_port:" .. self._start_port .. " port count:" .. self._port_count)
 	self._port_info.client_map[event.session] = {}
 end
 

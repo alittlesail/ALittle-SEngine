@@ -79,7 +79,7 @@ function ALittle.SipRtp:UseRtp(sip_system, call_id, from_ip)
 	local from_rtp_yun_ip
 	local to_rtp_ip
 	local to_rtp_yun_ip
-	if self._self_ip == from_ip then
+	if self._self_ip == from_ip or self._self_yun_ip == from_ip then
 		from_rtp_ip = self._self_ip
 		from_rtp_yun_ip = self._self_yun_ip
 		to_rtp_ip = self._proxy_ip

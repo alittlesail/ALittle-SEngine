@@ -954,6 +954,8 @@ function ALittle.SipCall:UpdateRtpIpAndPort(rtp_ip, rtp_port)
 	if rtp_port == nil or rtp_port == 0 then
 		return
 	end
+	self._rtp_ip = rtp_ip
+	self._rtp_port = rtp_port
 	if self._use_rtp ~= nil then
 		if self._out_or_in then
 			self._sip_system._sip_rtp:SetToRtp(self._use_rtp.sip_system, self._use_rtp.call_id, rtp_ip, rtp_port)

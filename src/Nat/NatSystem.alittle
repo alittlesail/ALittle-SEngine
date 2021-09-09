@@ -56,12 +56,19 @@ public class NatSystem
             A_LoopSystem.RemoveTimer(this._clear_idle_timer);
             this._clear_idle_timer = null;
         }
-        __CPPAPI_ServerSchedule.ReleaseAllNat();    
+
+        for (var session, map in this._port_info.client_map)
+        {
+            for (var port, info in map)
+                this.ReleasePort(session, port);
+        }
+        this._port_info.client_map = new Map<IMsgCommon, Map<int, bool>>();
     }
 
     private fun HandleAnyConnect(SessionConnectEvent event)
     {
-        Log("connect node:", GetRouteName(event.route_type, event.route_num));
+        Log("nat system, new node connected:"..GetRouteName(event.route_type, event.route_num)
+               ..", ip:"..this._nat_ip.." start_port:"..this._start_port.." port count:"..this._port_count);
         this._port_info.client_map[event.session] = new Map<int, bool>();
     }
 
@@ -82,7 +89,7 @@ public class NatSystem
         // 如果使用个数，超出总数
         if (this._port_info.use_count + 1 > this._port_info.total_count) return null, null;
 
-            // 个数添加
+        // 个数添加
         this._port_info.use_count += 1;
 
         if (port == null || port == 0)

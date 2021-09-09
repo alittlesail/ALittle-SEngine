@@ -607,7 +607,7 @@ public class SipSystem : EventDispatcher
 
         var remote_ip = event.remote_ip;
         var remote_port = event.remote_port;
-        // 如果是nat
+        // 如果当前使用的nat转发，并且来源的ip是NAT的ip。那么就把remote_ip转为Sip的目标ip和端口
         if (this._nat_password != "" && this._nat_password != null && event.remote_ip == this._self_yun_ip && event.remote_port == this._self_port)
         {
             remote_ip = this._remote_ip;
