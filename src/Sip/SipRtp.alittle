@@ -205,6 +205,22 @@ public class SipRtp
         __CPPAPI_ServerSchedule.SetToAuth(first_port, password);
     }
 
+    // 开始录音
+    public fun StartRecordRtp(SipSystem sip_system, string call_id, string file_path)
+    {
+        var first_port = this.GetRtpInfoByCallId(sip_system, call_id);
+        if (first_port == null) return;
+        __CPPAPI_ServerSchedule.StartRecordRtp(first_port, file_path);
+    }
+
+    // 停止录音
+    public fun StopRecordRtp(SipSystem sip_system, string call_id)
+    {
+        var first_port = this.GetRtpInfoByCallId(sip_system, call_id);
+        if (first_port == null) return;
+        __CPPAPI_ServerSchedule.StopRecordRtp(first_port);
+    }
+
     // 根据call_id来返回Rtp信息，以及对应的第一个端口
     private fun GetRtpInfoByCallId(SipSystem sip_system, string call_id) : int
     {

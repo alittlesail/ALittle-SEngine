@@ -98,6 +98,12 @@ public class SipSystem : EventDispatcher
     private int _sqlite3_time = 0;
     private int _sqlite3_commit_timer;
 
+    // 录音设置
+    protected string _record_ringing_path;
+    protected bool _record_ringing = false;
+    protected string _record_talking_path;
+    protected bool _record_talking = false;
+
     public fun Setup(SipRegister sip_register, SipRtp sip_rtp
                     , string self_ip, string self_yun_ip, int self_port
                     , string remote_ip, int remote_port, string remote_domain
@@ -146,6 +152,28 @@ public class SipSystem : EventDispatcher
     public fun SetPreAccount(string pre_account) { this._pre_account = pre_account; }
 
     public fun SetSupport100Rel(bool support_100_rel) { this._support_100_rel = support_100_rel; }
+
+    public fun SetRecordRinging(string record_path, bool value)
+    {
+        this._record_ringing_path = record_path;
+        if (value && this._record_ringing_path != null && this._record_ringing_path != "")
+        {
+        	ALittle.File_MakeDeepDir(this._record_ringing_path);
+            this._record_ringing_path = ALittle.File_PathEndWithSplit(this._record_ringing_path);
+        }
+        this._record_ringing = value;
+    }
+
+    public fun SetRecordTalking(string record_path, bool value)
+    {
+        this._record_talking_path = record_path;
+        if (value && this._record_talking_path != null && this._record_talking_path != "")
+        {
+            ALittle.File_MakeDeepDir(this._record_talking_path);
+            this._record_talking_path = ALittle.File_PathEndWithSplit(this._record_talking_path);
+        }
+        this._record_talking = value;
+    }
 
     public fun SetAccountCallUnitCount(int call_unit, int call_count)
     {

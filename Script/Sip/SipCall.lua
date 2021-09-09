@@ -188,6 +188,7 @@ function ALittle.SipCall:HandleSipInfoAtTalk(method, status, response_list, cont
 		sip_head = sip_head .. "Server: " .. self._sip_system._service_name .. "\r\n"
 		sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
 		self._sip_system:Send(self._call_id, sip_head, self._sip_ip, self._sip_port)
+		self:StopRecord()
 		self._sip_step = 11
 		self:DispatchStepChanged()
 		return
@@ -265,6 +266,7 @@ function ALittle.SipCall:HandleSipInfoAtTalkBying(method, status, response_list,
 	local cseq_number, cseq_method = ALittle.SipCall.GetCseqFromUDP(content_list)
 	if method == "SIP/2.0" and status == "200" then
 		if cseq_method == "BYE" then
+			self:StopRecord()
 			self._sip_step = 11
 			self:DispatchStepChanged()
 			return
@@ -290,12 +292,14 @@ function ALittle.SipCall:HandleSipInfoAtTalkBying(method, status, response_list,
 		sip_head = sip_head .. "Server: " .. self._sip_system._service_name .. "\r\n"
 		sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
 		self._sip_system:Send(self._call_id, sip_head, self._sip_ip, self._sip_port)
+		self:StopRecord()
 		self._sip_step = 11
 		self:DispatchStepChanged()
 		return
 	end
 	local sxx = ALittle.String_Sub(status, 1, 1)
 	if method == "SIP/2.0" and (sxx == "4" or sxx == "5" or sxx == "6") then
+		self:StopRecord()
 		self._sip_step = 11
 		self:DispatchStepChanged()
 		return
@@ -435,6 +439,7 @@ function ALittle.SipCall:HandleSipInfoAtCallInInvite(method, status, response_li
 		sip_head = sip_head .. "Server: " .. self._sip_system._service_name .. "\r\n"
 		sip_head = sip_head .. "Content-Length: " .. ALittle.String_Len(sip_body) .. "\r\n\r\n"
 		self._sip_system:Send(self._call_id, sip_head .. sip_body, self._sip_ip, self._sip_port)
+		self:StopRecord()
 		self._sip_step = 11
 		self:DispatchStepChanged()
 		return
@@ -505,6 +510,7 @@ end
 
 function ALittle.SipCall:HandleSipInfoAtCallInOK(method, status, response_list, content_list)
 	if method == "ACK" then
+		self:StartRecordTalking()
 		self._sip_step = 9
 		self._via_branch = "z9hG4bK-" .. ALittle.String_Md5(ALittle.String_GenerateID("via_branch"))
 		self:DispatchStepChanged()
@@ -514,6 +520,7 @@ end
 
 function ALittle.SipCall:HandleSipInfoAtCallInForbidden(method, status, response_list, content_list)
 	if method == "ACK" then
+		self:StopRecord()
 		self._sip_step = 11
 		self:DispatchStepChanged()
 		return
@@ -532,6 +539,7 @@ function ALittle.SipCall:HandleSipInfoAtCallInForbidden(method, status, response
 		sip_head = sip_head .. "Server: " .. self._sip_system._service_name .. "\r\n"
 		sip_head = sip_head .. "Content-Length: " .. ALittle.String_Len(sip_body) .. "\r\n\r\n"
 		self._sip_system:Send(self._call_id, sip_head .. sip_body, self._sip_ip, self._sip_port)
+		self:StopRecord()
 		self._sip_step = 11
 		self:DispatchStepChanged()
 		return
@@ -551,6 +559,7 @@ function ALittle.SipCall:HandleSipInfoAtCallInForbidden(method, status, response
 		sip_head = sip_head .. "Server: " .. self._sip_system._service_name .. "\r\n"
 		sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
 		self._sip_system:Send(self._call_id, sip_head, self._sip_ip, self._sip_port)
+		self:StopRecord()
 		self._sip_step = 11
 		self:DispatchStepChanged()
 	end
@@ -673,6 +682,7 @@ function ALittle.SipCall:HandleSipInfoAtCallOutTrying(method, status, response_l
 		local audio_name, audio_number, dtmf_rtpmap, dtmf_fmtp, dtmf_number, rtp_ip, rtp_port = self:GetAudioInfoSDP(content_list)
 		self:UpdateRtpIpAndPort(rtp_ip, rtp_port)
 		self._receive_183_180 = true
+		self:StartRecordRinging()
 		self._sip_step = 2
 		self:DispatchStepChanged()
 		self._sip_system:AddResend(self)
@@ -751,6 +761,7 @@ function ALittle.SipCall:HandleSipInfoAtCallOutRinging(method, status, response_
 		if status == "500" and cseq_method == "PRACK" then
 			return
 		end
+		self:StopRecord()
 		self._sip_step = 11
 		self:DispatchStepChanged()
 		return
@@ -769,6 +780,7 @@ function ALittle.SipCall:HandleSipInfoAtCallOutRinging(method, status, response_
 	if method == "SIP/2.0" and status == "200" then
 		if cseq_method == "INVITE" and self._sip_step ~= 9 then
 			self:HandleResponseOKForInvite(status, content_list)
+			self:StartRecordTalking()
 			self._sip_step = 9
 			self:DispatchStepChanged()
 			return
@@ -812,6 +824,7 @@ function ALittle.SipCall:HandleSipInfoAtCallOutCanceling(method, status, respons
 			sip_head = sip_head .. "Max-Forwards: 70\r\n"
 			sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
 			self._sip_system:Send(self._call_id, sip_head, self._sip_ip, self._sip_port)
+			self:StopRecord()
 			self._sip_step = 11
 			self:DispatchStepChanged()
 			return
@@ -820,12 +833,14 @@ function ALittle.SipCall:HandleSipInfoAtCallOutCanceling(method, status, respons
 	if method == "SIP/2.0" and status == "200" then
 		if cseq_method == "INVITE" and self._sip_step ~= 9 then
 			self:HandleResponseOKForInvite(status, content_list)
+			self:StartRecordTalking()
 			self._sip_step = 9
 			self:DispatchStepChanged()
 			self:StopCall(nil, "正在Cancel的时候收到200接听事件，现在立刻发送bye来挂断电话")
 			return
 		end
 		if cseq_method == "CANCEL" and self._sip_step ~= 9 then
+			self:StopRecord()
 			self._sip_step = 11
 			self:DispatchStepChanged()
 			return
@@ -971,6 +986,35 @@ function ALittle.SipCall:UpdateRtpIpAndPort(rtp_ip, rtp_port)
 			self._proxy_rtp.to_rtp_port = rtp_port
 		end
 	end
+end
+
+function ALittle.SipCall:StartRecordRinging()
+	if self._use_rtp == nil then
+		return
+	end
+	if not self._sip_system._record_ringing then
+		return
+	end
+	local file_name = self._from_number .. "_" .. self._to_number .. "_" .. self._use_rtp.call_id .. "_ringing.rtp"
+	self._sip_system._sip_rtp:StartRecordRtp(self._use_rtp.sip_system, self._use_rtp.call_id, self._sip_system._record_ringing_path .. file_name)
+end
+
+function ALittle.SipCall:StartRecordTalking()
+	if self._use_rtp == nil then
+		return
+	end
+	if not self._sip_system._record_talking then
+		return
+	end
+	local file_name = self._from_number .. "_" .. self._to_number .. "_" .. self._use_rtp.call_id .. "_talking.rtp"
+	self._sip_system._sip_rtp:StartRecordRtp(self._use_rtp.sip_system, self._use_rtp.call_id, self._sip_system._record_talking_path .. file_name)
+end
+
+function ALittle.SipCall:StopRecord()
+	if self._use_rtp == nil then
+		return
+	end
+	self._sip_system._sip_rtp:StopRecordRtp(self._use_rtp.sip_system, self._use_rtp.call_id)
 end
 
 function ALittle.SipCall:GenProxyAuth(method, use_to_number)

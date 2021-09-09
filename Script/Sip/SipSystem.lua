@@ -68,6 +68,8 @@ function ALittle.SipSystem:Ctor()
 	___rawset(self, "_account_call_limit", {})
 	___rawset(self, "_sqlite3_transaction", false)
 	___rawset(self, "_sqlite3_time", 0)
+	___rawset(self, "_record_ringing", false)
+	___rawset(self, "_record_talking", false)
 end
 
 function ALittle.SipSystem:Setup(sip_register, sip_rtp, self_ip, self_yun_ip, self_port, remote_ip, remote_port, remote_domain, sqlit3_path, sqlite3_pre_name)
@@ -108,6 +110,24 @@ end
 
 function ALittle.SipSystem:SetSupport100Rel(support_100_rel)
 	self._support_100_rel = support_100_rel
+end
+
+function ALittle.SipSystem:SetRecordRinging(record_path, value)
+	self._record_ringing_path = record_path
+	if value and self._record_ringing_path ~= nil and self._record_ringing_path ~= "" then
+		ALittle.File_MakeDeepDir(self._record_ringing_path)
+		self._record_ringing_path = ALittle.File_PathEndWithSplit(self._record_ringing_path)
+	end
+	self._record_ringing = value
+end
+
+function ALittle.SipSystem:SetRecordTalking(record_path, value)
+	self._record_talking_path = record_path
+	if value and self._record_talking_path ~= nil and self._record_talking_path ~= "" then
+		ALittle.File_MakeDeepDir(self._record_talking_path)
+		self._record_talking_path = ALittle.File_PathEndWithSplit(self._record_talking_path)
+	end
+	self._record_talking = value
 end
 
 function ALittle.SipSystem:SetAccountCallUnitCount(call_unit, call_count)

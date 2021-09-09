@@ -267,6 +267,7 @@ public class SipCall
 			sip_head = sip_head.."Content-Length: 0\r\n\r\n";
             this._sip_system.Send(this._call_id, sip_head, this._sip_ip, this._sip_port);
 
+            this.StopRecord();
             this._sip_step = SipStep.TALK_END;
             this.DispatchStepChanged();
             return;
@@ -360,6 +361,7 @@ public class SipCall
         {
             if (cseq_method == "BYE")
             {
+                this.StopRecord();
                 this._sip_step = SipStep.TALK_END;
                 this.DispatchStepChanged();
                 return;
@@ -392,6 +394,7 @@ public class SipCall
 			sip_head = sip_head.."Content-Length: 0\r\n\r\n";
             this._sip_system.Send(this._call_id, sip_head, this._sip_ip, this._sip_port);
 
+            this.StopRecord();
             this._sip_step = SipStep.TALK_END;
             this.DispatchStepChanged();
             return;
@@ -400,6 +403,7 @@ public class SipCall
         var sxx = String_Sub(status, 1, 1);
         if (method == "SIP/2.0" && (sxx == "4" || sxx == "5" || sxx == "6"))
         {
+            this.StopRecord();
             this._sip_step = SipStep.TALK_END;
             this.DispatchStepChanged();
             return;
@@ -573,6 +577,8 @@ public class SipCall
             sip_head = sip_head.."Server: "..this._sip_system._service_name.."\r\n";
 			sip_head = sip_head.."Content-Length: "..String_Len(sip_body).."\r\n\r\n";
             this._sip_system.Send(this._call_id, sip_head..sip_body, this._sip_ip, this._sip_port);
+
+            this.StopRecord();
             this._sip_step = SipStep.TALK_END;
             this.DispatchStepChanged();
             return;
@@ -646,6 +652,7 @@ public class SipCall
     {
         if (method == "ACK")
         {
+            this.StartRecordTalking();
             this._sip_step = SipStep.TALK;
             this._via_branch = "z9hG4bK-"..String_Md5(String_GenerateID("via_branch"));
             this.DispatchStepChanged();
@@ -657,6 +664,7 @@ public class SipCall
     {
         if (method == "ACK")
         {
+            this.StopRecord();
             this._sip_step = SipStep.TALK_END;
             this.DispatchStepChanged();
             return;
@@ -676,6 +684,8 @@ public class SipCall
             sip_head = sip_head.."Server: "..this._sip_system._service_name.."\r\n";
 			sip_head = sip_head.."Content-Length: "..String_Len(sip_body).."\r\n\r\n";
             this._sip_system.Send(this._call_id, sip_head..sip_body, this._sip_ip, this._sip_port);
+
+            this.StopRecord();
             this._sip_step = SipStep.TALK_END;
             this.DispatchStepChanged();
             return;
@@ -698,6 +708,8 @@ public class SipCall
             sip_head = sip_head.."Server: "..this._sip_system._service_name.."\r\n";
 			sip_head = sip_head.."Content-Length: 0\r\n\r\n";
             this._sip_system.Send(this._call_id, sip_head, this._sip_ip, this._sip_port);
+
+            this.StopRecord();
             this._sip_step = SipStep.TALK_END;
             this.DispatchStepChanged();
         }
@@ -826,10 +838,13 @@ public class SipCall
 
             var audio_name, audio_number, dtmf_rtpmap, dtmf_fmtp, dtmf_number, rtp_ip, rtp_port = this.GetAudioInfoSDP(content_list);
             this.UpdateRtpIpAndPort(rtp_ip, rtp_port);
-
+            
             this._receive_183_180 = true;
+            
+            this.StartRecordRinging();
             this._sip_step = SipStep.OUT_RINGING;
             this.DispatchStepChanged();
+            
             this._sip_system.AddResend(this);
             this.CheckRequire100rel(content_list);
             return;
@@ -919,6 +934,7 @@ public class SipCall
             var cseq_number, cseq_method = SipCall.GetCseqFromUDP(content_list);
             if (status == "500" && cseq_method == "PRACK") return;
 
+            this.StopRecord();
             this._sip_step = SipStep.TALK_END;
             this.DispatchStepChanged();
             return;
@@ -942,6 +958,8 @@ public class SipCall
             if (cseq_method == "INVITE" && this._sip_step != SipStep.TALK)
             {
                 this.HandleResponseOKForInvite(status, content_list);
+
+                this.StartRecordTalking();
                 this._sip_step = SipStep.TALK;
                 this.DispatchStepChanged();
                 return;
@@ -998,6 +1016,7 @@ public class SipCall
 				sip_head = sip_head.."Content-Length: 0\r\n\r\n";
                 this._sip_system.Send(this._call_id, sip_head, this._sip_ip, this._sip_port);
 
+                this.StopRecord();
                 this._sip_step = SipStep.TALK_END;
                 this.DispatchStepChanged();
                 return;
@@ -1009,6 +1028,8 @@ public class SipCall
             if (cseq_method == "INVITE" && this._sip_step != SipStep.TALK)
             {
                 this.HandleResponseOKForInvite(status, content_list);
+
+                this.StartRecordTalking();
                 this._sip_step = SipStep.TALK;
                 this.DispatchStepChanged();
                 // 立刻发送bye的事件转为bye的状态
@@ -1018,6 +1039,7 @@ public class SipCall
 
             if (cseq_method == "CANCEL" && this._sip_step != SipStep.TALK)
             {
+                this.StopRecord();
                 this._sip_step = SipStep.TALK_END;
                 this.DispatchStepChanged();
                 return;
@@ -1181,6 +1203,30 @@ public class SipCall
                 this._proxy_rtp.to_rtp_port = rtp_port;
             }
         }
+    }
+
+    public fun StartRecordRinging()
+    {
+        if (this._use_rtp == null) return;
+        if (!this._sip_system._record_ringing) return;
+
+        var file_name = this._from_number.."_"..this._to_number.."_"..this._use_rtp.call_id.."_ringing.rtp";
+        this._sip_system._sip_rtp.StartRecordRtp(this._use_rtp.sip_system, this._use_rtp.call_id, this._sip_system._record_ringing_path..file_name);
+    }
+
+    public fun StartRecordTalking()
+    {
+        if (this._use_rtp == null) return;
+        if (!this._sip_system._record_talking) return;
+
+        var file_name = this._from_number.."_"..this._to_number.."_"..this._use_rtp.call_id.."_talking.rtp";
+        this._sip_system._sip_rtp.StartRecordRtp(this._use_rtp.sip_system, this._use_rtp.call_id, this._sip_system._record_talking_path..file_name);
+    }
+
+    public fun StopRecord()
+    {
+        if (this._use_rtp == null) return;
+        this._sip_system._sip_rtp.StopRecordRtp(this._use_rtp.sip_system, this._use_rtp.call_id);
     }
 
     public fun GenProxyAuth(string method, bool use_to_number) : string

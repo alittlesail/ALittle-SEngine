@@ -158,6 +158,22 @@ function ALittle.SipRtp:SetToAuth(sip_system, call_id, password)
 	__CPPAPI_ServerSchedule:SetToAuth(first_port, password)
 end
 
+function ALittle.SipRtp:StartRecordRtp(sip_system, call_id, file_path)
+	local first_port = self:GetRtpInfoByCallId(sip_system, call_id)
+	if first_port == nil then
+		return
+	end
+	__CPPAPI_ServerSchedule:StartRecordRtp(first_port, file_path)
+end
+
+function ALittle.SipRtp:StopRecordRtp(sip_system, call_id)
+	local first_port = self:GetRtpInfoByCallId(sip_system, call_id)
+	if first_port == nil then
+		return
+	end
+	__CPPAPI_ServerSchedule:StopRecordRtp(first_port)
+end
+
 function ALittle.SipRtp:GetRtpInfoByCallId(sip_system, call_id)
 	local call_id_map_port = self._rtp_info.call_id_map_port[sip_system]
 	if call_id_map_port ~= nil then

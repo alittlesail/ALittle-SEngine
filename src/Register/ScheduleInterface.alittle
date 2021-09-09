@@ -49,6 +49,12 @@ public class __CPPAPIServerSchedule
 
     // 设置被叫方鉴权
 	public fun SetToAuth(int first_port, string password) {}
+
+    // 开始录音
+    public fun StartRecordRtp(int first_port, string file_path) : bool {}
+
+    // 停止录音
+    public fun StopRecordRtp(int first_port) {}
     
     // 清理空闲rtp，可以定时调用
     // idle_delta_time 表示超过多少秒的空闲清理掉
