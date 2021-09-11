@@ -9,7 +9,7 @@ local ___ipairs = ipairs
 
 ALittle.RegStruct(-1329691084, "ALittle.RegisterInfo", {
 name = "ALittle.RegisterInfo", ns_name = "ALittle", rl_name = "RegisterInfo", hash_code = -1329691084,
-name_list = {"account","auth_account","auth_password","last_resgiter_time","check_register_time","result"},
+name_list = {"account","auth_account","auth_password","last_resgiter_time","check_register_time","status"},
 type_list = {"string","string","string","int","int","string"},
 option_map = {}
 })
@@ -61,26 +61,17 @@ function ALittle.SipRegister:GetSipRegisterStatistics()
 	end
 	local result_map = {}
 	for account, info in ___pairs(self._register_map) do
-		local result = ""
-		if self._check_map[account] ~= nil then
-			if info.check_register_time < cur_time then
-				result = "注册超时"
-			else
-				result = "正在注册"
-			end
-		else
-			result = info.result
+		local status = info.status
+		if status == nil then
+			status = ""
 		end
-		if result == nil then
-			result = "等待注册"
-		end
-		local count = result_map[result]
+		local count = result_map[status]
 		if count == nil then
 			count = 1
 		else
 			count = count + (1)
 		end
-		result_map[result] = count
+		result_map[status] = count
 	end
 	local log = "账号总数:" .. account_count .. " 等待下次注册:" .. self._register_patch_count .. " 正在注册:" .. register_count .. " 注册超时:" .. timeout_count
 	for result, count in ___pairs(result_map) do
@@ -105,14 +96,14 @@ function ALittle.SipRegister:HandleRegisterSucceed(account)
 	self._check_map[account] = nil
 	local info = self._register_map[account]
 	if info ~= nil then
-		info.result = "succeed"
+		info.status = "注册成功"
 	end
 end
 
 function ALittle.SipRegister:HandleRegisterFailed(account, error)
 	local info = self._register_map[account]
 	if info ~= nil then
-		info.result = error
+		info.status = error
 	end
 end
 
@@ -138,7 +129,7 @@ function ALittle.SipRegister:ReloadRegister(account_map_info)
 				info.auth_password = detail.auth_password
 				info.last_resgiter_time = 0
 				info.check_register_time = 0
-				info.result = nil
+				info.status = "等待注册"
 			end
 		end
 		remove_map[account] = nil
@@ -177,6 +168,7 @@ function ALittle.SipRegister:HandleRegisterTimer()
 		end
 		info.last_resgiter_time = cur_time
 		info.check_register_time = info.last_resgiter_time + self._failed_delay
+		info.status = "正在注册"
 		self._sip_system:RegisterAccount(info.account)
 		handle_count = handle_count + (1)
 		self._register_patch[self._register_patch_count] = nil

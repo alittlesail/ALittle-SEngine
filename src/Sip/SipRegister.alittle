@@ -9,7 +9,7 @@ public struct RegisterInfo
     string auth_password;	// 用于鉴权的密码
     int last_resgiter_time;	// 上次注册时间
     int check_register_time;	// 检查注册应答时间
-    string result;			// 注册失败的原因
+    string status;			// 注册失败的原因
 }
 
 public class SipRegister
@@ -87,26 +87,13 @@ public class SipRegister
         var result_map = new Map<string, int>();
         for (var account, info in this._register_map)
         {
-            var result = "";
-            // 判断正在注册
-            if (this._check_map[account] != null)
-            {
-                if (info.check_register_time < cur_time)
-                    result = "注册超时";
-                else
-                	result = "正在注册";
-            }
-            else
-            {
-                result = info.result;
-            }
+            var status = info.status;
+            if (status == null) status = "";
 
-            if (result == null) result = "等待注册";
-
-            var count = result_map[result];
+            var count = result_map[status];
             if (count == null) count = 1;
             else count += 1;
-            result_map[result] = count;
+            result_map[status] = count;
         }
 
         var log = "账号总数:"..account_count.." 等待下次注册:"..this._register_patch_count.." 正在注册:"..register_count.." 注册超时:"..timeout_count;
@@ -134,14 +121,14 @@ public class SipRegister
     {
         this._check_map[account] = null;
         var info = this._register_map[account];
-        if (info != null) info.result = "succeed";
+        if (info != null) info.status = "注册成功";
     }
 
     // 当SIP流程注册失败
     protected fun HandleRegisterFailed(string account, string error)
     {
         var info = this._register_map[account];
-        if (info != null) info.result = error;
+        if (info != null) info.status = error;
     }
 
     // 重新加载账号配置
@@ -179,7 +166,7 @@ public class SipRegister
                     info.auth_password = detail.auth_password;
                     info.last_resgiter_time = 0;
                     info.check_register_time = 0;
-                    info.result = null;
+                    info.status = "等待注册";
                 }
             }
 
@@ -235,6 +222,7 @@ public class SipRegister
             // 设置最新时间
             info.last_resgiter_time = cur_time;
             info.check_register_time = info.last_resgiter_time + this._failed_delay;
+            info.status = "正在注册";
             // 执行注册
             this._sip_system.RegisterAccount(info.account);
             // 添加处理数量
