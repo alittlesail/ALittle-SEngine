@@ -708,6 +708,13 @@ public class SipSystem : EventDispatcher
                 var from_number, from_tag = SipCall.GetFromFromUDP(content_list);
                 this._sip_register.HandleRegisterSucceed(from_number);
             }
+            else
+            {
+                var from_number, from_tag = SipCall.GetFromFromUDP(content_list);
+                var warning = SipCall.GetKeyValueFromUDP(content_list, "WARNING");
+                if (warning == null) warning = "status-"..status;
+                this._sip_register.HandleRegisterFailed(from_number, warning);
+            }
             return;
         }
 

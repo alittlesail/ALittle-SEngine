@@ -9,6 +9,7 @@ public struct RegisterInfo
     string auth_password;	// 用于鉴权的密码
     int last_resgiter_time;	// 上次注册时间
     int check_register_time;	// 检查注册应答时间
+    string result;			// 注册失败的原因
 }
 
 public class SipRegister
@@ -82,7 +83,37 @@ public class SipRegister
                 timeout_count += 1;
         }
 
+        // 原因统计
+        var result_map = new Map<string, int>();
+        for (var account, info in this._register_map)
+        {
+            var result = "";
+            // 判断正在注册
+            if (this._check_map[account] != null)
+            {
+                if (info.check_register_time < cur_time)
+                    result = "注册超时";
+                else
+                	result = "正在注册";
+            }
+            else
+            {
+                result = info.result;
+            }
+
+            if (result == null) result = "等待注册";
+
+            var count = result_map[result];
+            if (count == null) count = 1;
+            else count += 1;
+            result_map[result] = count;
+        }
+
         var log = "账号总数:"..account_count.." 等待下次注册:"..this._register_patch_count.." 正在注册:"..register_count.." 注册超时:"..timeout_count;
+        for (var result, count in result_map)
+        {
+            log = log.."\n"..count..":"..result;
+        }
 
         return log;
     }
@@ -102,6 +133,15 @@ public class SipRegister
     protected fun HandleRegisterSucceed(string account)
     {
         this._check_map[account] = null;
+        var info = this._register_map[account];
+        if (info != null) info.result = "succeed";
+    }
+
+    // 当SIP流程注册失败
+    protected fun HandleRegisterFailed(string account, string error)
+    {
+        var info = this._register_map[account];
+        if (info != null) info.result = error;
     }
 
     // 重新加载账号配置
@@ -139,6 +179,7 @@ public class SipRegister
                     info.auth_password = detail.auth_password;
                     info.last_resgiter_time = 0;
                     info.check_register_time = 0;
+                    info.result = null;
                 }
             }
 
@@ -191,7 +232,7 @@ public class SipRegister
             var info = this._register_patch[this._register_patch_count];
             // 如果还未到注册时间，那么就直接退出
             if (info.last_resgiter_time != 0 && info.last_resgiter_time + this._expires / 2 > cur_time) break;
-                // 设置最新时间
+            // 设置最新时间
             info.last_resgiter_time = cur_time;
             info.check_register_time = info.last_resgiter_time + this._failed_delay;
             // 执行注册

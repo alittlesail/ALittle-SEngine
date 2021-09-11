@@ -9,8 +9,8 @@ local ___ipairs = ipairs
 
 ALittle.RegStruct(-1329691084, "ALittle.RegisterInfo", {
 name = "ALittle.RegisterInfo", ns_name = "ALittle", rl_name = "RegisterInfo", hash_code = -1329691084,
-name_list = {"account","auth_account","auth_password","last_resgiter_time","check_register_time"},
-type_list = {"string","string","string","int","int"},
+name_list = {"account","auth_account","auth_password","last_resgiter_time","check_register_time","result"},
+type_list = {"string","string","string","int","int","string"},
 option_map = {}
 })
 
@@ -59,7 +59,33 @@ function ALittle.SipRegister:GetSipRegisterStatistics()
 			timeout_count = timeout_count + (1)
 		end
 	end
+	local result_map = {}
+	for account, info in ___pairs(self._register_map) do
+		local result = ""
+		if self._check_map[account] ~= nil then
+			if info.check_register_time < cur_time then
+				result = "注册超时"
+			else
+				result = "正在注册"
+			end
+		else
+			result = info.result
+		end
+		if result == nil then
+			result = "等待注册"
+		end
+		local count = result_map[result]
+		if count == nil then
+			count = 1
+		else
+			count = count + (1)
+		end
+		result_map[result] = count
+	end
 	local log = "账号总数:" .. account_count .. " 等待下次注册:" .. self._register_patch_count .. " 正在注册:" .. register_count .. " 注册超时:" .. timeout_count
+	for result, count in ___pairs(result_map) do
+		log = log .. "\n" .. count .. ":" .. result
+	end
 	return log
 end
 
@@ -77,6 +103,17 @@ end
 
 function ALittle.SipRegister:HandleRegisterSucceed(account)
 	self._check_map[account] = nil
+	local info = self._register_map[account]
+	if info ~= nil then
+		info.result = "succeed"
+	end
+end
+
+function ALittle.SipRegister:HandleRegisterFailed(account, error)
+	local info = self._register_map[account]
+	if info ~= nil then
+		info.result = error
+	end
 end
 
 function ALittle.SipRegister:ReloadRegister(account_map_info)
@@ -101,6 +138,7 @@ function ALittle.SipRegister:ReloadRegister(account_map_info)
 				info.auth_password = detail.auth_password
 				info.last_resgiter_time = 0
 				info.check_register_time = 0
+				info.result = nil
 			end
 		end
 		remove_map[account] = nil

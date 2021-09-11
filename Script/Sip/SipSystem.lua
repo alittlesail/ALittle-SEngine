@@ -568,6 +568,13 @@ function ALittle.SipSystem:HandleSipInfo(event)
 		elseif status == "200" then
 			local from_number, from_tag = ALittle.SipCall.GetFromFromUDP(content_list)
 			self._sip_register:HandleRegisterSucceed(from_number)
+		else
+			local from_number, from_tag = ALittle.SipCall.GetFromFromUDP(content_list)
+			local warning = ALittle.SipCall.GetKeyValueFromUDP(content_list, "WARNING")
+			if warning == nil then
+				warning = "status-" .. status
+			end
+			self._sip_register:HandleRegisterFailed(from_number, warning)
 		end
 		return
 	end
