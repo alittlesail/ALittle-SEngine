@@ -1276,7 +1276,7 @@ end
 function ALittle.SipCall.GetFromFromUDP(content_list)
 	local value = ALittle.SipCall.GetKeyValueFromUDP(content_list, "FROM")
 	if value == nil then
-		return nil, nil
+		return nil, nil, nil
 	end
 	return ALittle.SipCall.GetFromOrToFromUDP(value)
 end
@@ -1284,7 +1284,7 @@ end
 function ALittle.SipCall.GetToFromUDP(content_list)
 	local value = ALittle.SipCall.GetKeyValueFromUDP(content_list, "TO")
 	if value == nil then
-		return nil, nil
+		return nil, nil, nil
 	end
 	return ALittle.SipCall.GetFromOrToFromUDP(value)
 end
@@ -1294,29 +1294,46 @@ function ALittle.SipCall.GetFromOrToFromUDP(value)
 	if pos_begin == nil then
 		pos_begin = ALittle.String_Find(value, "tel:")
 		if pos_begin == nil then
-			return nil, nil
+			return nil, nil, nil
 		end
 	end
-	local pos_end = ALittle.String_Find(value, "@")
-	if pos_end == nil then
-		pos_end = ALittle.String_Find(value, ";")
-		if pos_end == nil then
-			pos_end = ALittle.String_Find(value, ">")
-		end
-		if pos_end == nil then
-			return nil, nil
-		end
+	local pos_end_at = ALittle.String_Find(value, "@")
+	local pos_end_semicolon = ALittle.String_Find(value, ";")
+	local pos_end_brackets = ALittle.String_Find(value, ">")
+	if pos_end_semicolon ~= nil and pos_end_semicolon ~= nil and pos_end_semicolon > pos_end_brackets then
+		pos_end_semicolon = nil
 	end
-	if pos_begin >= pos_end then
-		return nil, nil
+	local number_end = pos_end_at
+	if number_end == nil then
+		number_end = pos_end_semicolon
 	end
-	local from_number = ALittle.String_Sub(value, pos_begin + 4, pos_end - 1)
-	local from_tag = ""
+	if number_end == nil then
+		number_end = pos_end_brackets
+	end
+	if number_end == nil then
+		return nil, nil, nil
+	end
+	if pos_begin >= number_end then
+		return nil, nil, nil
+	end
+	local number = ALittle.String_Sub(value, pos_begin + 4, number_end - 1)
+	local sip_end = pos_end_semicolon
+	if sip_end == nil then
+		sip_end = pos_end_brackets
+	end
+	if sip_end == nil then
+		return nil, nil, nil
+	end
+	if pos_begin >= sip_end then
+		return nil, nil, nil
+	end
+	local sip = ALittle.String_Sub(value, pos_begin + 4, sip_end - 1)
+	local tag = ""
 	local split_list = ALittle.String_Split(value, "tag=")
 	if split_list[2] ~= nil then
-		from_tag = split_list[2]
+		tag = split_list[2]
 	end
-	return from_number, from_tag
+	return number, tag, sip
 end
 
 function ALittle.SipCall:GetAudioInfoSDP(content_list)

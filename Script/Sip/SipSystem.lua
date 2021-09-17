@@ -668,6 +668,7 @@ function ALittle.SipSystem:HandleRegister(method, status, response_list, content
 end
 
 function ALittle.SipSystem:HandleUnknowCall(method, status, response_list, content_list, remote_ip, remote_port)
+	local sxx = ALittle.String_Sub(status, 1, 1)
 	if method == "BYE" then
 		local via = ALittle.SipCall.GetKeyValueFromUDP(content_list, "VIA")
 		local from = ALittle.SipCall.GetKeyValueFromUDP(content_list, "FROM")
@@ -681,6 +682,23 @@ function ALittle.SipSystem:HandleUnknowCall(method, status, response_list, conte
 		sip_head = sip_head .. "Call-ID: " .. call_id .. "\r\n"
 		sip_head = sip_head .. "CSeq: " .. cseq .. "\r\n"
 		sip_head = sip_head .. "Server: " .. self._service_name .. "\r\n"
+		sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
+		self:Send(call_id, sip_head, remote_ip, remote_port)
+	elseif method == "SIP/2.0" and (sxx == "4" or sxx == "5" or sxx == "6") then
+		local via = ALittle.SipCall.GetKeyValueFromUDP(content_list, "VIA")
+		local from = ALittle.SipCall.GetKeyValueFromUDP(content_list, "FROM")
+		local to = ALittle.SipCall.GetKeyValueFromUDP(content_list, "TO")
+		local to_number, to_tag, to_sip = ALittle.SipCall.GetToFromUDP(content_list)
+		local cseq_num, cseq_method = ALittle.SipCall.GetCseqFromUDP(content_list)
+		local call_id = ALittle.SipCall.GetKeyValueFromUDP(content_list, "CALL-ID")
+		local sip_head = "ACK sip:" .. to_sip .. " SIP/2.0\r\n"
+		sip_head = sip_head .. "Via: " .. via .. "\r\n"
+		sip_head = sip_head .. "From: " .. from .. "\r\n"
+		sip_head = sip_head .. "To: " .. to .. "\r\n"
+		sip_head = sip_head .. "Call-ID: " .. call_id .. "\r\n"
+		sip_head = sip_head .. "CSeq: " .. cseq_num .. " ACK\r\n"
+		sip_head = sip_head .. "Server: " .. self._service_name .. "\r\n"
+		sip_head = sip_head .. "Max-Forwards: 70\r\n"
 		sip_head = sip_head .. "Content-Length: 0\r\n\r\n"
 		self:Send(call_id, sip_head, remote_ip, remote_port)
 	end

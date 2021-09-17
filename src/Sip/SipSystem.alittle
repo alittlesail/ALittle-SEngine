@@ -842,6 +842,7 @@ public class SipSystem : EventDispatcher
     // 处理未知的呼叫，避免对面频繁发送
     private fun HandleUnknowCall(string method, string status, List<string> response_list, List<string> content_list, string remote_ip, int remote_port)
     {
+        var sxx = String_Sub(status, 1, 1);
         if (method == "BYE")
         {
             var via = SipCall.GetKeyValueFromUDP(content_list, "VIA");
@@ -857,6 +858,26 @@ public class SipSystem : EventDispatcher
 			sip_head = sip_head.."Call-ID: "..call_id.."\r\n";
 			sip_head = sip_head.."CSeq: "..cseq.."\r\n";
             sip_head = sip_head.."Server: "..this._service_name.."\r\n";
+			sip_head = sip_head.."Content-Length: 0\r\n\r\n";
+            this.Send(call_id, sip_head, remote_ip, remote_port);
+        }
+        elseif (method == "SIP/2.0" && (sxx == "4" || sxx == "5" || sxx == "6"))
+        {
+            var via = SipCall.GetKeyValueFromUDP(content_list, "VIA");
+            var from = SipCall.GetKeyValueFromUDP(content_list, "FROM");
+            var to = SipCall.GetKeyValueFromUDP(content_list, "TO");
+            var to_number, to_tag, to_sip = SipCall.GetToFromUDP(content_list);
+            var cseq_num, cseq_method = SipCall.GetCseqFromUDP(content_list);
+            var call_id = SipCall.GetKeyValueFromUDP(content_list, "CALL-ID");
+
+            var sip_head = "ACK sip:"..to_sip.." SIP/2.0\r\n";
+			sip_head = sip_head.."Via: "..via.."\r\n";
+			sip_head = sip_head.."From: "..from.."\r\n";
+			sip_head = sip_head.."To: "..to.."\r\n";
+			sip_head = sip_head.."Call-ID: "..call_id.."\r\n";
+			sip_head = sip_head.."CSeq: "..cseq_num.." ACK\r\n";
+            sip_head = sip_head.."Server: "..this._service_name.."\r\n";
+			sip_head = sip_head.."Max-Forwards: 70\r\n";
 			sip_head = sip_head.."Content-Length: 0\r\n\r\n";
             this.Send(call_id, sip_head, remote_ip, remote_port);
         }
