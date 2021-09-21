@@ -65,17 +65,20 @@ function ALittle.SipRegister:GetSipRegisterStatistics()
 		if status == nil then
 			status = ""
 		end
-		local count = result_map[status]
-		if count == nil then
-			count = 1
-		else
-			count = count + (1)
+		local list = result_map[status]
+		if list == nil then
+			list = {}
+			result_map[status] = list
 		end
-		result_map[status] = count
+		ALittle.List_Push(list, account)
 	end
 	local log = "账号总数:" .. account_count .. " 等待下次注册:" .. self._register_patch_count .. " 正在注册:" .. register_count .. " 注册超时:" .. timeout_count
-	for result, count in ___pairs(result_map) do
+	for result, list in ___pairs(result_map) do
+		local count = ALittle.List_Len(list)
 		log = log .. "\n" .. count .. ":" .. result
+		if result ~= "注册成功" then
+			log = log .. "\n" .. ALittle.String_Join(list, ",")
+		end
 	end
 	return log
 end

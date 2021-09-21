@@ -84,22 +84,28 @@ public class SipRegister
         }
 
         // 原因统计
-        var result_map = new Map<string, int>();
+        var result_map = new Map<string, List<string>>();
         for (var account, info in this._register_map)
         {
             var status = info.status;
             if (status == null) status = "";
 
-            var count = result_map[status];
-            if (count == null) count = 1;
-            else count += 1;
-            result_map[status] = count;
+            var list = result_map[status];
+            if (list == null)
+            {
+                list = new List<string>();
+                result_map[status] = list;
+            }
+            ALittle.List_Push(list, account);
         }
 
         var log = "账号总数:"..account_count.." 等待下次注册:"..this._register_patch_count.." 正在注册:"..register_count.." 注册超时:"..timeout_count;
-        for (var result, count in result_map)
+        for (var result, list in result_map)
         {
+            var count = ALittle.List_Len(list);
             log = log.."\n"..count..":"..result;
+            if (result != "注册成功")
+            	log = log.."\n"..ALittle.String_Join(list, ",");
         }
 
         return log;
