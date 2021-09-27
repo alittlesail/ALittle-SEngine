@@ -97,6 +97,7 @@ public class SipSystem : EventDispatcher
     private bool _sqlite3_transaction = false;
     private int _sqlite3_time = 0;
     private int _sqlite3_commit_timer;
+    private int _sqlite3_delete_timer;
 
     // 录音设置
     protected string _record_ringing_path;
@@ -143,6 +144,9 @@ public class SipSystem : EventDispatcher
 
         // 每条提交数据库
         this._sqlite3_commit_timer = A_LoopSystem.AddTimer(5000, bind(this.HandleSqlilte3Commit, this), -1, 5000);
+
+        // 文件删除定时器
+        this._sqlite3_delete_timer = A_LoopSystem.AddTimer(5000, bind(this.HandleSqlilte3Delete, this), -1, 3600 * 1000);
     }
 
     public fun SetServiceName(string service_name) { this._service_name = service_name; }
@@ -285,6 +289,12 @@ public class SipSystem : EventDispatcher
             this._sqlite3_commit_timer = null;
         }
 
+        if (this._sqlite3_delete_timer != null)
+        {
+            A_LoopSystem.RemoveTimer(this._sqlite3_delete_timer);
+            this._sqlite3_delete_timer = null;
+        }
+
         if (this._nat_auth_timer != null)
         {
             A_LoopSystem.RemoveTimer(this._nat_auth_timer);
@@ -421,6 +431,25 @@ public class SipSystem : EventDispatcher
         this._sqlite3_transaction = false;
 
         this._sqlite3_log.exec("COMMIT;");
+    }
+
+    private fun HandleSqlilte3Delete()
+    {
+        var day_count_before = 3;
+
+        var sqlite3_dir = ALittle.File_GetFilePathByPath(this._sqlit3_path);
+        if (File_GetFileAttr(sqlite3_dir) == null) return;
+
+        var cut_time = Time_GetCurTime() - day_count_before * 3600 * 24;
+        var file_map = File_GetFileAttrByDir(sqlite3_dir);
+        for (var path, attr in file_map)
+        {
+            if (attr.create_time <= cut_time)
+            {
+                File_DeleteFile(path);
+            	ALittle.Log("delete", path);
+            }
+        }
     }
 
     private fun CloseCurrentSqlite3Log()

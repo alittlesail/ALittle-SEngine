@@ -94,6 +94,7 @@ function ALittle.SipSystem:Setup(sip_register, sip_rtp, self_ip, self_yun_ip, se
 	self._loop_resend = A_LoopSystem:AddTimer(1000, Lua.Bind(self.HandleUpdateResend, self), -1, 1000)
 	self._loop_session = A_LoopSystem:AddTimer(1000, Lua.Bind(self.HandleUpdateSession, self), -1, 6000)
 	self._sqlite3_commit_timer = A_LoopSystem:AddTimer(5000, Lua.Bind(self.HandleSqlilte3Commit, self), -1, 5000)
+	self._sqlite3_delete_timer = A_LoopSystem:AddTimer(5000, Lua.Bind(self.HandleSqlilte3Delete, self), -1, 3600 * 1000)
 end
 
 function ALittle.SipSystem:SetServiceName(service_name)
@@ -226,6 +227,10 @@ function ALittle.SipSystem:Shutdown()
 		A_LoopSystem:RemoveTimer(self._sqlite3_commit_timer)
 		self._sqlite3_commit_timer = nil
 	end
+	if self._sqlite3_delete_timer ~= nil then
+		A_LoopSystem:RemoveTimer(self._sqlite3_delete_timer)
+		self._sqlite3_delete_timer = nil
+	end
 	if self._nat_auth_timer ~= nil then
 		A_LoopSystem:RemoveTimer(self._nat_auth_timer)
 		self._nat_auth_timer = nil
@@ -348,6 +353,22 @@ function ALittle.SipSystem:HandleSqlilte3Commit()
 	end
 	self._sqlite3_transaction = false
 	self._sqlite3_log:exec("COMMIT;")
+end
+
+function ALittle.SipSystem:HandleSqlilte3Delete()
+	local day_count_before = 3
+	local sqlite3_dir = ALittle.File_GetFilePathByPath(self._sqlit3_path)
+	if ALittle.File_GetFileAttr(sqlite3_dir) == nil then
+		return
+	end
+	local cut_time = ALittle.Time_GetCurTime() - day_count_before * 3600 * 24
+	local file_map = ALittle.File_GetFileAttrByDir(sqlite3_dir)
+	for path, attr in ___pairs(file_map) do
+		if attr.create_time <= cut_time then
+			ALittle.File_DeleteFile(path)
+			ALittle.Log("delete", path)
+		end
+	end
 end
 
 function ALittle.SipSystem:CloseCurrentSqlite3Log()
