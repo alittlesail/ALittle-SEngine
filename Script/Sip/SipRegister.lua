@@ -9,74 +9,157 @@ local ___ipairs = ipairs
 
 ALittle.RegStruct(-1329691084, "ALittle.RegisterInfo", {
 name = "ALittle.RegisterInfo", ns_name = "ALittle", rl_name = "RegisterInfo", hash_code = -1329691084,
-name_list = {"account","auth_account","auth_password","last_resgiter_time","check_register_time","status"},
-type_list = {"string","string","string","int","int","string"},
+name_list = {"account","auth_account","auth_password"},
+type_list = {"string","string","string"},
 option_map = {}
 })
+
+ALittle.RegisterObject = Lua.Class(nil, "ALittle.RegisterObject")
+
+function ALittle.RegisterObject:Ctor(info, sip_register)
+	___rawset(self, "_info", info)
+	___rawset(self, "_sip_register", sip_register)
+end
+
+function ALittle.RegisterObject:IsChecking()
+	return self._check_timer ~= nil
+end
+
+function ALittle.RegisterObject:IsRegistering()
+	return self._register_timer ~= nil
+end
+
+function ALittle.RegisterObject:GetLastStatus()
+	return self._last_status
+end
+
+function ALittle.RegisterObject:IsSame(info)
+	if self._info.account ~= info.account then
+		return false
+	end
+	if self._info.auth_account ~= info.auth_account then
+		return false
+	end
+	if self._info.auth_password ~= info.auth_password then
+		return false
+	end
+	return true
+end
+
+function ALittle.RegisterObject:GetInfo()
+	return self._info
+end
+
+function ALittle.RegisterObject:StopCheckTimer()
+	if self._check_timer == nil then
+		return
+	end
+	A_LoopSystem:RemoveTimer(self._check_timer)
+	self._check_timer = nil
+end
+
+function ALittle.RegisterObject:StopRegisterTimer()
+	if self._register_timer == nil then
+		return
+	end
+	A_LoopSystem:RemoveTimer(self._register_timer)
+	self._register_timer = nil
+end
+
+function ALittle.RegisterObject:StartRegisterTimer(delay_ms)
+	self:StopRegisterTimer()
+	self._register_timer = A_LoopSystem:AddTimer(delay_ms, Lua.Bind(self.HandleRegisterTimer, self))
+end
+
+function ALittle.RegisterObject:HandleRegisterTimer()
+	self._register_timer = nil
+	self._last_status = "正在注册"
+	self._sip_register:RegisterAccount(self._info.account)
+	self:StartCheckTimer()
+end
+
+function ALittle.RegisterObject:StartCheckTimer()
+	local delay_ms = 60 * 1000
+	self:StopCheckTimer()
+	self._check_timer = A_LoopSystem:AddTimer(delay_ms, Lua.Bind(self.HandleCheckTimer, self))
+end
+
+function ALittle.RegisterObject:HandleCheckTimer()
+	self._check_timer = nil
+	self._last_status = "注册超时"
+	self._sip_register:RegisterAccount(self._info.account)
+	self:StartCheckTimer()
+end
+
+function ALittle.RegisterObject:HandleSucceed()
+	self._last_status = "注册成功"
+	self:StopCheckTimer()
+	self:StartRegisterTimer(ALittle.Math_Floor(self._sip_register:GetExpires() / 2) * 1000)
+end
+
+function ALittle.RegisterObject:HandleFailed(error)
+	self._last_status = error
+	if self._last_status == nil then
+		self._last_status = "注册失败"
+	end
+	self:StopCheckTimer()
+	self:StartRegisterTimer(60 * 1000)
+end
 
 ALittle.SipRegister = Lua.Class(nil, "ALittle.SipRegister")
 
 function ALittle.SipRegister:Ctor()
 	___rawset(self, "_expires", 3600)
 	___rawset(self, "_max_per_second", 0)
-	___rawset(self, "_failed_delay", 60)
 	___rawset(self, "_register_map", {})
-	___rawset(self, "_register_patch", {})
-	___rawset(self, "_register_patch_count", 0)
-	___rawset(self, "_check_map", {})
 end
 
 function ALittle.SipRegister:Setup(sip_system, expires, max_per_second)
 	self._sip_system = sip_system
 	self._expires = expires
 	self._max_per_second = max_per_second
-	self._register_timer = A_LoopSystem:AddTimer(1000, Lua.Bind(self.HandleRegisterTimer, self), 0, 1000)
-	self._check_timer = A_LoopSystem:AddTimer(1000, Lua.Bind(self.HandleCheckTimer, self), 0, 1000)
 end
 
 function ALittle.SipRegister:Shutdown()
-	if self._check_timer ~= nil then
-		A_LoopSystem:RemoveTimer(self._check_timer)
-		self._check_timer = nil
+	for key, info in ___pairs(self._register_map) do
+		info:StopRegisterTimer()
+		info:StopCheckTimer()
 	end
-	if self._register_timer ~= nil then
-		A_LoopSystem:RemoveTimer(self._register_timer)
-		self._register_timer = nil
-	end
+	self._register_map = {}
+end
+
+function ALittle.SipRegister:RegisterAccount(account)
+	self._sip_system:RegisterAccount(account)
 end
 
 function ALittle.SipRegister:GetSipRegisterStatistics()
 	local account_count = 0
+	local check_count = 0
+	local register_count = 0
+	local error_map = {}
 	for account, info in ___pairs(self._register_map) do
 		account_count = account_count + (1)
-	end
-	local cur_time = ALittle.Time_GetCurTime()
-	local register_count = 0
-	local timeout_count = 0
-	for account, info in ___pairs(self._check_map) do
-		register_count = register_count + (1)
-		if info.check_register_time < cur_time then
-			timeout_count = timeout_count + (1)
+		if info:IsChecking() then
+			check_count = check_count + (1)
+		end
+		if info:IsRegistering() then
+			register_count = register_count + (1)
+		end
+		local last_status = info:GetLastStatus()
+		if last_status ~= nil then
+			local list = error_map[last_status]
+			if list == nil then
+				list = {}
+				error_map[last_status] = list
+			end
+			ALittle.List_Push(list, account)
 		end
 	end
-	local result_map = {}
-	for account, info in ___pairs(self._register_map) do
-		local status = info.status
-		if status == nil then
-			status = ""
-		end
-		local list = result_map[status]
-		if list == nil then
-			list = {}
-			result_map[status] = list
-		end
-		ALittle.List_Push(list, account)
-	end
-	local log = "账号总数:" .. account_count .. " 等待下次注册:" .. self._register_patch_count .. " 正在注册:" .. register_count .. " 注册超时:" .. timeout_count
-	for result, list in ___pairs(result_map) do
+	local log = "账号总数:" .. account_count .. " 正在注册:" .. check_count .. " 等待下次注册:" .. register_count
+	for error, list in ___pairs(error_map) do
 		local count = ALittle.List_Len(list)
-		log = log .. "\n" .. count .. ":" .. result
-		if result ~= "注册成功" then
+		log = log .. "\n" .. count .. ":" .. error
+		if error ~= "注册成功" then
 			log = log .. "\n" .. ALittle.String_Join(list, ",")
 		end
 	end
@@ -92,104 +175,59 @@ function ALittle.SipRegister:GetRegisterInfo(account)
 	if info == nil then
 		return nil
 	end
-	return info
+	return info:GetInfo()
 end
 
 function ALittle.SipRegister:HandleRegisterSucceed(account)
-	self._check_map[account] = nil
 	local info = self._register_map[account]
-	if info ~= nil then
-		info.status = "注册成功"
+	if info == nil then
+		return
 	end
+	info:HandleSucceed()
 end
 
 function ALittle.SipRegister:HandleRegisterFailed(account, error)
 	local info = self._register_map[account]
-	if info ~= nil then
-		info.status = error
+	if info == nil then
+		return
 	end
+	info:HandleFailed(error)
 end
 
 function ALittle.SipRegister:ReloadRegister(account_map_info)
 	local remove_map = {}
-	for account, value in ___pairs(self._register_map) do
-		remove_map[account] = value
+	for account, info in ___pairs(self._register_map) do
+		remove_map[account] = info
 	end
 	for account, detail in ___pairs(account_map_info) do
 		local info = self._register_map[account]
+		if info ~= nil and not info:IsSame(detail) then
+			info:StopCheckTimer()
+			info:StopRegisterTimer()
+			info = nil
+			self._register_map[account] = nil
+		end
 		if info == nil then
-			info = {}
-			info.last_resgiter_time = 0
-			info.check_register_time = 0
-			info.account = account
-			info.auth_account = detail.auth_account
-			info.auth_password = detail.auth_password
+			info = ALittle.RegisterObject(detail, self)
 			self._register_map[account] = info
-		else
-			if info.account ~= account or info.auth_account ~= detail.auth_account or info.auth_password ~= detail.auth_password then
-				info.account = account
-				info.auth_account = detail.auth_account
-				info.auth_password = detail.auth_password
-				info.last_resgiter_time = 0
-				info.check_register_time = 0
-				info.status = "等待注册"
-			end
 		end
 		remove_map[account] = nil
 	end
-	for account, value in ___pairs(remove_map) do
+	for account, info in ___pairs(remove_map) do
+		info:StopCheckTimer()
+		info:StopRegisterTimer()
 		self._register_map[account] = nil
 	end
-	self._check_map = {}
-	self:BuildRegisterPatch()
-end
-
-function ALittle.SipRegister:BuildRegisterPatch()
-	self._register_patch = {}
-	self._register_patch_count = 0
-	for key, value in ___pairs(self._register_map) do
-		self._register_patch_count = self._register_patch_count + (1)
-		self._register_patch[self._register_patch_count] = value
-	end
-	ALittle.List_Sort(self._register_patch, ALittle.SipRegister.BuildRegisterPatchSort)
-end
-
-function ALittle.SipRegister.BuildRegisterPatchSort(a, b)
-	return a.last_resgiter_time > b.last_resgiter_time
-end
-
-function ALittle.SipRegister:HandleRegisterTimer()
-	local cur_time = ALittle.Time_GetCurTime()
-	if self._register_patch_count <= 0 then
-		self:BuildRegisterPatch()
-	end
-	local handle_count = 0
-	while self._register_patch_count > 0 do
-		local info = self._register_patch[self._register_patch_count]
-		if info.last_resgiter_time ~= 0 and info.last_resgiter_time + self._expires / 2 > cur_time then
-			break
-		end
-		info.last_resgiter_time = cur_time
-		info.check_register_time = info.last_resgiter_time + self._failed_delay
-		info.status = "正在注册"
-		self._sip_system:RegisterAccount(info.account)
-		handle_count = handle_count + (1)
-		self._register_patch[self._register_patch_count] = nil
-		self._register_patch_count = self._register_patch_count - (1)
-		self._check_map[info.account] = info
-		if self._max_per_second > 0 and handle_count >= self._max_per_second then
-			break
-		end
-	end
-end
-
-function ALittle.SipRegister:HandleCheckTimer()
-	local cur_time = ALittle.Time_GetCurTime()
-	for account, info in ___pairs(self._check_map) do
-		if info.check_register_time < cur_time then
-			info.last_resgiter_time = cur_time
-			info.check_register_time = info.last_resgiter_time + self._failed_delay
-			self._sip_system:RegisterAccount(info.account)
+	local delay_ms = 1000
+	local cur_count = 0
+	for account, info in ___pairs(self._register_map) do
+		if not info:IsChecking() then
+			info:StartRegisterTimer(delay_ms)
+			cur_count = cur_count + (1)
+			if self._max_per_second > 0 and cur_count >= self._max_per_second then
+				cur_count = 0
+				delay_ms = 1000
+			end
 		end
 	end
 end
