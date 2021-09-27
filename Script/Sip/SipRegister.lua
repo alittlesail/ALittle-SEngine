@@ -74,9 +74,11 @@ function ALittle.SipRegister:GetSipRegisterStatistics()
 		result_map[status] = count
 	end
 	local log = "账号总数:" .. account_count .. " 等待下次注册:" .. self._register_patch_count .. " 正在注册:" .. register_count .. " 注册超时:" .. timeout_count
+	local detail_list = {}
 	for result, count in ___pairs(result_map) do
-		log = log .. "\n" .. count .. ":" .. result
+		ALittle.List_Push(detail_list, count .. ":" .. result)
 	end
+	log = log .. ALittle.String_Join(detail_list, "\n")
 	return log
 end
 

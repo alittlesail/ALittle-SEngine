@@ -97,6 +97,7 @@ public class SipSystem : EventDispatcher
     private bool _sqlite3_transaction = false;
     private int _sqlite3_time = 0;
     private int _sqlite3_commit_timer;
+    private int _sqlite3_delete_timer;
 
     // 录音设置
     protected string _record_ringing_path;
@@ -143,6 +144,25 @@ public class SipSystem : EventDispatcher
 
         // 每条提交数据库
         this._sqlite3_commit_timer = A_LoopSystem.AddTimer(5000, bind(this.HandleSqlilte3Commit, this), -1, 5000);
+
+        // 删除日志
+        this._sqlite3_delete_timer = A_LoopSystem.AddTimer(5000, bind(this.HandleDeleteSqlite, this, 3), -1, 24 * 3600 * 1000);
+    }
+
+    private fun HandleDeleteSqlite(int day_count_before)
+    {
+        if (day_count_before <= 0) return;
+        if (this._sqlit3_path == null || this._sqlit3_path == "") return;
+    
+        if (File_GetFileAttr(this._sqlit3_path) == null) return;
+    
+        var cut_time = Time_GetCurTime() - day_count_before * 3600 * 24;
+        var file_map = File_GetFileAttrByDir(this._sqlit3_path);
+        for (var path, attr in file_map)
+        {
+            if (attr.create_time <= cut_time)
+            File_DeleteFile(path);
+        }
     }
 
     public fun SetServiceName(string service_name) { this._service_name = service_name; }
@@ -285,6 +305,12 @@ public class SipSystem : EventDispatcher
             this._sqlite3_commit_timer = null;
         }
 
+        if (this._sqlite3_delete_timer != null)
+        {
+            A_LoopSystem.RemoveTimer(this._sqlite3_delete_timer);
+            this._sqlite3_delete_timer = null;
+        }
+
         if (this._nat_auth_timer != null)
         {
             A_LoopSystem.RemoveTimer(this._nat_auth_timer);
@@ -357,7 +383,7 @@ public class SipSystem : EventDispatcher
         this._session_weak_map[call] = true;
     }
 
-    protected fun Send(string call_id, string message, string sip_ip, int sip_port)
+    protected fun Send(string call_id, string message, string sip_ip, int sip_port, string caller, string callee)
     {
         if (sip_ip == null || sip_ip == "" || sip_port == 0 || sip_port == null)
         {
@@ -372,7 +398,7 @@ public class SipSystem : EventDispatcher
         	__CPPAPI_ServerSchedule.SendUdpMessage(this._self_ip, this._self_port, sip_ip, sip_port, message);
 
         // 添加到日志
-        this.Sqlite3Log(call_id, message, this._self_ip, this._self_port, sip_ip, sip_port);
+        this.Sqlite3Log(call_id, message, this._self_ip, this._self_port, sip_ip, sip_port, caller, callee);
     }
 
     protected fun ReleaseCall(SipCall call_info)
@@ -389,7 +415,7 @@ public class SipSystem : EventDispatcher
         this.DispatchEvent(event);
     }
 
-    private fun Sqlite3Log(string call_id, string message, string from_ip, int from_port, string to_ip, int to_port)
+    private fun Sqlite3Log(string call_id, string message, string from_ip, int from_port, string to_ip, int to_port, string caller, string callee)
     {
         var sqlite = this.OpenCurrenSqlite3Log();
         if (sqlite == null)
@@ -408,7 +434,13 @@ public class SipSystem : EventDispatcher
             this._sqlite3_transaction = true;
         }
 
-        this._sqlite3_insert_stmt.bind_values(call_id, from_ip..":"..from_port, to_ip..":"..to_port, message, Time_GetCurTime());
+        var cur_time = Time_GetCurTime();
+        var cur_date = ALittle.Time_GetCurDate(cur_time);
+
+        if (caller == null) caller = "";
+        if (callee == null) callee = "";
+
+        this._sqlite3_insert_stmt.bind_values(call_id, from_ip..":"..from_port, to_ip..":"..to_port, caller, callee, message, cur_time, cur_date);
         this._sqlite3_insert_stmt.step();
         this._sqlite3_insert_stmt.reset();
     }
@@ -460,15 +492,18 @@ public class SipSystem : EventDispatcher
             sql = sql.."[c_call_id] [nvarchar](255) NOT NULL default '',";
             sql = sql.."[c_from] [nvarchar](255) NOT NULL default '',";
             sql = sql.."[c_to] [nvarchar](255) NOT NULL default '',";
+            sql = sql.."[c_caller] [nvarchar](255) NOT NULL default '',";
+            sql = sql.."[c_callee] [nvarchar](255) NOT NULL default '',";
             sql = sql.."[c_message] [text] NOT NULL default '',";
-            sql = sql.."[c_create_time] [int] NOT NULL default 0";
+            sql = sql.."[c_create_time] [int] NOT NULL default 0,";
+            sql = sql.."[c_create_date] [nvarchar](255) NOT NULL default ''";
             sql = sql..")";
             this._sqlite3_log.exec(sql);
         }
 
         // 插入预备
         {
-            var sql = "INSERT INTO SipLog (c_call_id, c_from, c_to, c_message, c_create_time) VALUES (?, ?, ?, ?, ?);";
+            var sql = "INSERT INTO SipLog (c_call_id, c_from, c_to, c_caller, c_callee, c_message, c_create_time, c_create_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?);";
             this._sqlite3_insert_stmt = this._sqlite3_log.prepare(sql);
             if (this._sqlite3_insert_stmt == null)
             {
@@ -657,9 +692,6 @@ public class SipSystem : EventDispatcher
             return;
         }
 
-        // 打印日志
-        this.Sqlite3Log(call_id, event.message, remote_ip, remote_port, this._self_ip, this._self_port);
-
         // 从第一行拆分出命令
         if (content_list[1] == null) return;
         var response_list = String_Split(content_list[1], " ");
@@ -673,9 +705,16 @@ public class SipSystem : EventDispatcher
             if (response_list[2] == null) return;
             status = response_list[2];
         }
+
+        // 获取from和to的账号
+        var from_number, from_tag = SipCall.GetFromFromUDP(content_list);
+        var to_number, to_tag = SipCall.GetToFromUDP(content_list);
         
         if (method == "REGISTER")
         {
+            // 打印日志
+            this.Sqlite3Log(call_id, event.message, remote_ip, remote_port, this._self_ip, this._self_port, from_number, to_number);
+            // 客户端对自己的注册消息
             this.HandleRegister(method, status, response_list, content_list, remote_ip, remote_port);
             return;
         }
@@ -683,11 +722,13 @@ public class SipSystem : EventDispatcher
         var cseq_number, cseq_method = SipCall.GetCseqFromUDP(content_list);
         if (cseq_method == "REGISTER")
         {
+            // 打印日志
+            this.Sqlite3Log(call_id, event.message, remote_ip, remote_port, this._self_ip, this._self_port, from_number, to_number);
+
             if (status == "401")
             {
                 var nonce, realm = SipCall.GetNonceRealmFromUDP(content_list, "WWW-AUTHENTICATE");
-                var from_number, from_tag = SipCall.GetFromFromUDP(content_list);
-
+                
                 var uri = this._remote_domain;
                 if (uri == null || uri == "") uri = this._remote_ip..":"..this._remote_port;
                 var auth_account = "";
@@ -701,16 +742,14 @@ public class SipSystem : EventDispatcher
                 var auth = SipCall.GenAuth(nonce, realm, auth_account, auth_password, "REGISTER", uri);
 
                 var via_branch = String_Md5(String_GenerateID("via_branch"));
-                this.Send(call_id, this.GenRegister(from_number, call_id, via_branch, from_tag, cseq_number + 1, auth), remote_ip, remote_port);
+                this.Send(call_id, this.GenRegister(from_number, call_id, via_branch, from_tag, cseq_number + 1, auth), remote_ip, remote_port, from_number, "");
             }
             elseif (status == "200")
             {
-                var from_number, from_tag = SipCall.GetFromFromUDP(content_list);
                 this._sip_register.HandleRegisterSucceed(from_number);
             }
             else
             {
-                var from_number, from_tag = SipCall.GetFromFromUDP(content_list);
                 var warning = SipCall.GetKeyValueFromUDP(content_list, "WARNING");
                 if (warning == null) warning = "status-"..status;
                 this._sip_register.HandleRegisterFailed(from_number, warning);
@@ -721,6 +760,9 @@ public class SipSystem : EventDispatcher
         // 处理呼入邀请，并且当前call_id不存在，那么属于新的呼入
         if (method == "INVITE")
         {
+            // 打印日志
+            this.Sqlite3Log(call_id, event.message, remote_ip, remote_port, this._self_ip, this._self_port, from_number, to_number);
+
             var call_info = this._call_map[call_id];
             if (call_info == null)
             {
@@ -753,22 +795,28 @@ public class SipSystem : EventDispatcher
             {
                 call_info.HandleCallSipReInvite(method, "", response_list, content_list);
             }
-        }
-        // 处理其他协议
-        else
-        {
-            var call_info = this._call_map[call_id];
-            if (call_info == null)
-            {
-                Warn("can't find call id:"..call_id);
-                this.HandleUnknowCall(method, status, response_list, content_list, remote_ip, remote_port);
-                return;
-            }
 
-            call_info.HandleSipInfo(method, status, response_list, content_list);
-            if (call_info._sip_step == SipStep.TALK_END)
-                this.ReleaseCall(call_info);
+            return;
         }
+
+        // 处理其他协议
+	    var call_info = this._call_map[call_id];
+        if (call_info == null)
+        {
+            // 打印日志
+            this.Sqlite3Log(call_id, event.message, remote_ip, remote_port, this._self_ip, this._self_port, "", "");
+
+            Warn("can't find call id:"..call_id);
+            this.HandleUnknowCall(method, status, response_list, content_list, remote_ip, remote_port);
+            return;
+        }
+
+        // 打印日志
+        this.Sqlite3Log(call_id, event.message, remote_ip, remote_port, this._self_ip, this._self_port, call_info._from_number, call_info._to_number);
+
+        call_info.HandleSipInfo(method, status, response_list, content_list);
+        if (call_info._sip_step == SipStep.TALK_END)
+            this.ReleaseCall(call_info);
     }
 
     //==============================================================================================
@@ -787,6 +835,8 @@ public class SipSystem : EventDispatcher
         if (ALittle.String_Find(to, "tag=") == null)
         	to = to..";tag="..String_Md5(String_GenerateID("to_tag"));
 
+        var from_number, from_tag = SipCall.GetFromFromUDP(content_list);
+
         // 检查鉴权信息
         var authorization = SipCall.GetKeyValueFromUDP(content_list, "AUTHORIZATION");
         if (authorization == null)
@@ -802,15 +852,14 @@ public class SipSystem : EventDispatcher
             sip_head = sip_head.."WWW-Authenticate: Digest realm=\"ALittle\", nonce=\""..String_Md5(String_GenerateID("nonce")).."\", stale=FALSE, algorithm=MD5\r\n";
             sip_head = sip_head.."Server: "..this._service_name.."\r\n";
             sip_head = sip_head.."Content-Length: 0\r\n\r\n";
-            this.Send(call_id, sip_head, remote_ip, remote_port);
+            this.Send(call_id, sip_head, remote_ip, remote_port, from_number, "");
 
             return;
         }
 
         // 如果验证成功才返回
         var nonce, realm, uri, response = SipCall.GetNonceRealmFromUDP(content_list, "AUTHORIZATION");
-        var from_number, from_tag = SipCall.GetFromFromUDP(content_list);
-
+        
         var sip_account = this._account_map[from_number];
         if (sip_account != null)
         {
@@ -832,7 +881,7 @@ public class SipSystem : EventDispatcher
                 sip_head = sip_head.."Allow: "..allow.."\r\n";
                 sip_head = sip_head.."Server: "..this._service_name.."\r\n";
                 sip_head = sip_head.."Content-Length: 0\r\n\r\n";
-                this.Send(call_id, sip_head, remote_ip, remote_port);
+                this.Send(call_id, sip_head, remote_ip, remote_port, from_number, "");
                 return;
             }
         }
@@ -859,7 +908,7 @@ public class SipSystem : EventDispatcher
 			sip_head = sip_head.."CSeq: "..cseq.."\r\n";
             sip_head = sip_head.."Server: "..this._service_name.."\r\n";
 			sip_head = sip_head.."Content-Length: 0\r\n\r\n";
-            this.Send(call_id, sip_head, remote_ip, remote_port);
+            this.Send(call_id, sip_head, remote_ip, remote_port, "", "");
         }
         elseif (method == "SIP/2.0" && (sxx == "4" || sxx == "5" || sxx == "6"))
         {
@@ -879,7 +928,7 @@ public class SipSystem : EventDispatcher
             sip_head = sip_head.."Server: "..this._service_name.."\r\n";
 			sip_head = sip_head.."Max-Forwards: 70\r\n";
 			sip_head = sip_head.."Content-Length: 0\r\n\r\n";
-            this.Send(call_id, sip_head, remote_ip, remote_port);
+            this.Send(call_id, sip_head, remote_ip, remote_port, "", "");
         }
     }
 
@@ -892,7 +941,7 @@ public class SipSystem : EventDispatcher
         var via_branch = String_Md5(String_GenerateID("via_branch"));
         var from_tag = String_Md5(String_GenerateID("from_tag"));
 
-        this.Send(call_id, this.GenRegister(account, call_id, via_branch, from_tag, 1, ""), this._remote_ip, this._remote_port);
+        this.Send(call_id, this.GenRegister(account, call_id, via_branch, from_tag, 1, ""), this._remote_ip, this._remote_port, account, "");
     }
 
     protected fun GenRegister(string account, string call_id, string via_branch, string from_tag, int cseq, string auth) : string

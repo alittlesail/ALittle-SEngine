@@ -97,10 +97,10 @@ public class SipRegister
         }
 
         var log = "账号总数:"..account_count.." 等待下次注册:"..this._register_patch_count.." 正在注册:"..register_count.." 注册超时:"..timeout_count;
+        var detail_list = new List<string>();
         for (var result, count in result_map)
-        {
-            log = log.."\n"..count..":"..result;
-        }
+            ALittle.List_Push(detail_list, count..":"..result);
+        log = log..ALittle.String_Join(detail_list, "\n");
 
         return log;
     }
