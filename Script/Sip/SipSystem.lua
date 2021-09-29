@@ -642,7 +642,13 @@ function ALittle.SipSystem:HandleRegister(method, status, response_list, content
 	local call_id = ALittle.SipCall.GetKeyValueFromUDP(content_list, "CALL-ID")
 	local max_forwards = ALittle.SipCall.GetKeyValueFromUDP(content_list, "MAX-FORWARDS")
 	local expires = ALittle.SipCall.GetKeyValueFromUDP(content_list, "EXPIRES")
+	if expires == nil then
+		expires = "3600"
+	end
 	local allow = ALittle.SipCall.GetKeyValueFromUDP(content_list, "ALLOW")
+	if allow == nil then
+		allow = "INVITE,ACK,CANCEL,OPTIONS,BYE,REFER,NOTIFY,INFO,MESSAGE,SUBSCRIBE,INFO"
+	end
 	if ALittle.String_Find(to, "tag=") == nil then
 		to = to .. ";tag=" .. ALittle.String_Md5(ALittle.String_GenerateID("to_tag"))
 	end
