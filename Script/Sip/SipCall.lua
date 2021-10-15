@@ -1149,6 +1149,7 @@ function ALittle.SipCall:GenSDP()
 	sdp = sdp .. "a=fmtp:" .. self._audio_number .. " annexb=no\r\n"
 	sdp = sdp .. self._dtmf_rtpmap .. "\r\n"
 	sdp = sdp .. self._dtmf_fmtp .. "\r\n"
+	sdp = sdp .. "a=ptime:20\r\n"
 	sdp = sdp .. "a=sendrecv\r\n"
 	return sdp
 end
